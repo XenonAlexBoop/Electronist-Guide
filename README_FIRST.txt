@@ -14,12 +14,18 @@ TO PUT A SHORTCUT ON YOUR DESKTOP (recommended, one-time):
 
 SHARING IT WITH SOMEONE ELSE:
   Copy or zip this ENTIRE FOLDER (not just the .exe - it needs the
-  "_internal" folder next to it) and send it to them. They run it the
-  same way: double-click ElectronistGuide.exe, or run
-  Create_Desktop_Shortcut.bat once for a shortcut.
+  "_internal" folder next to it) and send it to them.
 
 NOTE FOR WINDOWS SMARTSCREEN:
   Since this app isn't digitally signed with a paid certificate, Windows
   may show a blue "Windows protected your PC" screen the first time it
   runs. Click "More info" -> "Run anyway". This is normal for
   independently-built apps and only appears once.
+
+RECENT FIXES IN THIS BUILD:
+  - Modulation tab charts are bigger, better spaced, and properly labeled
+    (Amplitude / Magnitude axes); the spectrum chart now zooms to the
+    actual signal instead of showing mostly empty space for AM/PM.
+  - dB Calculator now includes a graph plotting ratio vs. dB on a linear
+    scale, so the exponential (non-linear) growth is directly visible,
+    with markers showing your last Ratio -> dB calculation.
