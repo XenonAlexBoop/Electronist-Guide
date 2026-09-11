@@ -1,37 +1,43 @@
-The Electronist's Guide - Windows App
-======================================
+The Electronist's Guide — Windows Build
+========================================
 
-This folder is a ready-to-run Windows app. No installation, no Python,
-nothing else needed.
+HOW TO RUN
+----------
+Double-click "ElectronistGuide.exe" in this folder. That's it — no
+installer, no Python required, everything needed is already bundled
+in the "_internal" folder next to the .exe (don't move the .exe away
+from that folder, or it won't find its files).
 
-TO RUN IT:
-  Just double-click  ElectronistGuide.exe
-  (First launch can take up to a minute while Windows/your antivirus
-  scans the unpacked files - this is normal and only happens once per
-  computer. After that it opens quickly.)
+Optional: run "Create_Desktop_Shortcut.bat" once to add a shortcut to
+your Desktop so you don't have to open this folder every time.
 
-TO PUT A SHORTCUT ON YOUR DESKTOP (recommended, one-time):
-  Double-click  Create_Desktop_Shortcut.bat
-  This adds "The Electronist's Guide" to your Desktop and Start Menu.
+WHAT'S NEW IN THIS BUILD
+-------------------------
+A new "RF & Microwave" tab has been added, with a "Multiport RF
+Simulator" inside it:
+  - Circuit Builder: a grid-based schematic editor (ports, resistors,
+    inductors, capacitors, transmission lines, loads, wires, grounds).
+  - Virtual VNA: two independent measurement/display channels with
+    markers and automatic peak/dip/max/min search.
+  - Smith Chart: a real, live-plotted Smith chart (impedance/admittance
+    modes, configurable reference impedance, markers).
+  - S-Parameter Results: the full S-parameter matrix at any swept
+    frequency point.
+  - A Learn tab covering S-parameters, reflection coefficient, VSWR,
+    return loss, transmission lines, and Smith Chart theory.
+Supports up to 4 ports, arbitrary branched circuit topologies (not
+just simple 2-port chains), and is available in both English and
+Romanian, matching the rest of the app.
 
-SHARING IT WITH SOMEONE ELSE:
-  Copy or zip this ENTIRE FOLDER (not just the .exe - it needs the
-  "_internal" folder next to it) and send it to them.
-
-NOTE FOR WINDOWS SMARTSCREEN:
-  Since this app isn't digitally signed with a paid certificate, Windows
-  may show a blue "Windows protected your PC" screen the first time it
-  runs. Click "More info" -> "Run anyway". Normal for independently-built
-  apps, only appears once.
-
-WHAT'S IN THIS UPDATE:
-  - A full technical accuracy pass across every Learn section, formula,
-    and calculator (JFET Q-point solver fix, RLC band-pass/band-stop
-    topology fix, Boolean Solver 8-variable limit handling, and many
-    added formulas/explanations in both English and Romanian).
-  - A full layout/readability pass: formulas and Learn text now wrap
-    responsively instead of getting cut off, panels are properly
-    balanced at any window size (tested down to the app's minimum
-    1000x700), and a couple of genuine rendering bugs were fixed
-    (a blank Transistor Junction Visualizer, an oversized reference
-    table on the Diode tab).
+TROUBLESHOOTING
+----------------
+- If Windows SmartScreen warns about an "unrecognized app", this is
+  expected for an app that isn't code-signed by a commercial
+  certificate. Click "More info" -> "Run anyway".
+- If your antivirus flags it, this is a common false positive for
+  PyInstaller-built executables; it is not caused by any actual
+  malicious code. You can inspect the full Python source in the
+  companion source zip if you'd like to verify this yourself.
+- Nothing is written outside this folder except normal Windows temp
+  files during startup (PyInstaller unpacks itself to a temp
+  directory each run); no installation, no registry changes.

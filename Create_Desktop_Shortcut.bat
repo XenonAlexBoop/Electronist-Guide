@@ -1,30 +1,17 @@
 @echo off
+REM Creates a "The Electronist's Guide" shortcut on the current user's Desktop.
 setlocal
-cd /d "%~dp0"
+set "TARGET=%~dp0ElectronistGuide.exe"
+set "SHORTCUT=%USERPROFILE%\Desktop\The Electronist's Guide.lnk"
 
-echo Creating a shortcut on your Desktop and in your Start Menu...
-
-set "EXE=%cd%\ElectronistGuide.exe"
-set "DESKTOP_LNK=%USERPROFILE%\Desktop\The Electronist's Guide.lnk"
-set "STARTMENU_LNK=%APPDATA%\Microsoft\Windows\Start Menu\Programs\The Electronist's Guide.lnk"
-set "PSFILE=%TEMP%\eg_make_shortcut.ps1"
-
-> "%PSFILE%" (
-    echo $ws = New-Object -ComObject WScript.Shell
-    echo foreach ^($path in @^("%DESKTOP_LNK%", "%STARTMENU_LNK%"^)^) {
-    echo     $sc = $ws.CreateShortcut^($path^)
-    echo     $sc.TargetPath = "%EXE%"
-    echo     $sc.WorkingDirectory = "%cd%"
-    echo     $sc.IconLocation = "%EXE%"
-    echo     $sc.Save^(^)
-    echo }
-)
-powershell -NoProfile -ExecutionPolicy Bypass -File "%PSFILE%"
-del "%PSFILE%" >nul 2>nul
+powershell -NoProfile -Command ^
+  "$s = (New-Object -COM WScript.Shell).CreateShortcut('%SHORTCUT%');" ^
+  "$s.TargetPath = '%TARGET%';" ^
+  "$s.WorkingDirectory = '%~dp0';" ^
+  "$s.IconLocation = '%TARGET%';" ^
+  "$s.Save()"
 
 echo.
-echo Done! "The Electronist's Guide" is now on your Desktop and in your
-echo Start Menu. You can delete/ignore this .bat file now - just use the
-echo shortcut from now on, or double-click ElectronistGuide.exe directly.
-echo.
+echo Shortcut created on your Desktop: "The Electronist's Guide"
+echo You can now launch the app from there.
 pause
