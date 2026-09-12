@@ -11,23 +11,26 @@ from that folder, or it won't find its files).
 Optional: run "Create_Desktop_Shortcut.bat" once to add a shortcut to
 your Desktop so you don't have to open this folder every time.
 
-WHAT'S NEW IN THIS BUILD
--------------------------
-A new "RF & Microwave" tab has been added, with a "Multiport RF
-Simulator" inside it:
-  - Circuit Builder: a grid-based schematic editor (ports, resistors,
-    inductors, capacitors, transmission lines, loads, wires, grounds).
-  - Virtual VNA: two independent measurement/display channels with
-    markers and automatic peak/dip/max/min search.
-  - Smith Chart: a real, live-plotted Smith chart (impedance/admittance
-    modes, configurable reference impedance, markers).
+WHAT'S IN THE "RF & MICROWAVE" TAB
+------------------------------------
+A "Multiport RF Simulator" with:
+  - Circuit Builder: a grid-based schematic editor with real component
+    symbols (zigzag resistor, coil inductor, plate capacitor, etc.),
+    ports, transmission lines, loads, wires, and grounds. Grounds (and
+    everything else) can be selected, dragged, and deleted, including
+    when placed on top of another part's terminal.
+  - Virtual VNA: two independent measurement/display channels, with an
+    on-screen explanation of what each channel does, click-to-place
+    markers, and automatic peak/dip/max/min search.
+  - Smith Chart: a real, live-plotted Smith chart whose reference
+    impedance auto-matches the actual simulated port (clearly marked
+    as auto vs. manually overridden), with click-to-place markers.
   - S-Parameter Results: the full S-parameter matrix at any swept
     frequency point.
   - A Learn tab covering S-parameters, reflection coefficient, VSWR,
     return loss, transmission lines, and Smith Chart theory.
-Supports up to 4 ports, arbitrary branched circuit topologies (not
-just simple 2-port chains), and is available in both English and
-Romanian, matching the rest of the app.
+Supports up to 4 ports, arbitrary branched circuit topologies, and is
+available in both English and Romanian.
 
 TROUBLESHOOTING
 ----------------
