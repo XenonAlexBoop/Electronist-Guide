@@ -11,27 +11,29 @@ from that folder, or it won't find its files).
 Optional: run "Create_Desktop_Shortcut.bat" once to add a shortcut to
 your Desktop so you don't have to open this folder every time.
 
-WHAT'S NEW IN THIS BUILD
--------------------------
-Boolean Logic -> "Logic Circuit Builder":
-  - New: a Junction Node part for clean signal branching (wire one
-    output into it, then wire its output to as many inputs as you like).
-  - New: scroll to zoom in/out (anchored on your cursor, like a map),
-    right-drag to pan, +/- buttons and a "Reset View" button in the
-    palette - built for navigating larger circuits.
-  - New: a live grid-snap preview (a small crosshair) follows your
-    cursor while placing parts, so you can see exactly where a click
-    will land before you commit to it.
-  - Everything still updates in real time: toggle an input switch and
-    watch every gate, mux/demux, node and wire update instantly.
+WHAT CHANGED IN THIS BUILD
+----------------------------
+Removed (per request, judged low-value):
+  - Resistor's "Chart / Simulate" subtab
+  - Capacitor's "Electrolytic" subtab
+  - Diode's "2-Diode Rectifier" subtab
+  - The entire standalone "Signal Generator" tab
+  - AC/DC Basics' "Troubleshooting" subtab
 
-RF & Microwave -> "Multiport RF Simulator": circuit builder with real
-component symbols, a Virtual VNA (two independent channels with
-click-to-place markers), a Smith Chart whose reference impedance
-auto-syncs to the simulated port, and full S-parameter results.
+Fixed: charts that plot roughly-constant values (e.g. a DC voltage
+divider's flat Vin/Vout lines) used to auto-zoom tight to just the data,
+hiding where 0 actually is. Every remaining chart across the app now
+always keeps 0 in view as a reference, without ever cropping real data.
 
-Both tools are available in English and Romanian, matching the rest
-of the app.
+Added: the BJT, MOSFET and JFET Q-Point / Bias calculators now draw the
+actual family of characteristic curves (Ic-vs-Vce or Id-vs-Vds at a few
+different Ib/Vgs values) behind the load line, with the one curve that
+actually passes through the calculated Q-point drawn bolder than the
+others — not just the load line and a dot as before.
+
+Everything from the last build (RF & Microwave, Logic Circuit Builder,
+Number Base / ADC-DAC converter) is unchanged and still included, in
+both English and Romanian.
 
 TROUBLESHOOTING
 ----------------
