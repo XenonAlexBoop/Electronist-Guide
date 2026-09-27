@@ -1,4 +1,4 @@
-The Electronist's Guide v5.0 — Windows Build
+The Electronist's Guide v5.1 — Windows Build
 ==============================================
 
 HOW TO RUN
@@ -9,6 +9,20 @@ to the .exe (keep the .exe in this folder).
 
 Optional: run "Create_Desktop_Shortcut.bat" once to add a Desktop
 shortcut.
+
+WHAT'S NEW IN v5.1 (Transistors)
+--------------------------------
+- Junction Visualizer rebuilt for BJT, MOSFET and JFET (N and P): wide-
+  range sliders + one-click presets for every way current can flow
+  (active, saturation, cut-off, reverse, sub-threshold, reverse channel,
+  body diode, gate conduction, breakdown/avalanche). Electrons and holes
+  move along each real current path, depletion regions show their ions,
+  channels taper and pinch off. Bias map (BJT) / live ID-VDS curve (FETs)
+  and the symbol with every terminal current.
+- Correct transistor symbols everywhere.
+- New "Basic Circuits" tab: switches, amplifiers, followers, current
+  sources, JFET voltage-controlled resistor - edit any value, see the
+  schematic, Q-point, transfer curve and waveforms update live.
 
 WHAT'S NEW IN v5.0
 ------------------
@@ -30,13 +44,11 @@ WHAT'S NEW IN v5.0
   with ~40 formulas — tick the quantity you want and it is solved for.
 - DC charts: voltage and current share the same zero line.
 
-The previous exe is kept next to this one as
-ElectronistGuide_v4.5_backup.exe (it uses the same _internal folder);
-delete it once you're happy with v5.0.
+The full Python source is in the "source" folder of this repository.
 
 TROUBLESHOOTING
 ----------------
 - Windows SmartScreen may warn about an "unrecognized app" (the exe is
   not code-signed). Click "More info" -> "Run anyway".
 - Some antivirus tools flag PyInstaller apps as a false positive. The
-  full source is in the electronist_guide_5.0 folder.
+  full source is in the "source" folder.
