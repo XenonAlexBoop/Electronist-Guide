@@ -17,6 +17,7 @@ a fallback in the field next to each marker's checkbox.
 """
 import numpy as np
 import tkinter as tk
+from widgets import debounce_figure, smart_draw
 from tkinter import ttk
 
 import matplotlib
@@ -119,6 +120,7 @@ class ChannelPanel(ttk.Frame):
 
         self.fig = Figure(figsize=(5.0, 3.8), dpi=100, facecolor=PLOT_BG)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
+        debounce_figure(self.canvas)
         self.canvas.get_tk_widget().grid(row=4, column=0, sticky="nsew", padx=12, pady=8)
         self.rowconfigure(4, weight=1)
         self.canvas.mpl_connect("button_press_event", self._on_plot_click)
@@ -297,7 +299,7 @@ class ChannelPanel(ttk.Frame):
                 s.set_visible(False)
             msg = t("rf.vna.no_data") if result is None else t("rf.vna.hidden")
             ax.text(0.5, 0.5, msg, color=PLOT_FG, ha="center", va="center", transform=ax.transAxes)
-            self.canvas.draw()
+            smart_draw(self.canvas)
             self._clear_marker_labels()
             return
 
@@ -309,7 +311,7 @@ class ChannelPanel(ttk.Frame):
             self._draw_rect(ax, result, trace)
 
         self.fig.tight_layout()
-        self.canvas.draw()
+        smart_draw(self.canvas)
 
     def _draw_rect(self, ax, result, trace):
         ax.set_facecolor(PLOT_BG)

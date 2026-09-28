@@ -7,9 +7,11 @@ from widgets import (TheoryPanel, ScrollableFrame, format_value, parse_value, pa
                       series_sum, parallel_combo, FONT_H1, FONT_H2, FONT_BODY, FONT_MONO, ACCENT)
 from charts import TimeChartTab, ParamField, inductor_signals
 from combos import MixedBuilderPanel
+from tabs.coupling_viz import CouplingPanel
 from solver import FormulaSolverPanel, inductor_formulas
 from symbols import SymbolGallery
 from i18n import t
+from widgets import lazy_tab
 
 ACCENT_C = ACCENT["inductor"]
 
@@ -37,39 +39,42 @@ class InductorTab(ttk.Frame):
         nb.grid(row=0, column=0, sticky="nsew")
 
         color_tab = ttk.Frame(nb, style="Card.TFrame")
-        reactance_tab = FormulaSolverPanel(nb, inductor_formulas(), ACCENT_C)
-        coupling_tab = ttk.Frame(nb, style="Card.TFrame")
-        transformer_tab = ttk.Frame(nb, style="Card.TFrame")
-        combo_tab = ttk.Frame(nb, style="Card.TFrame")
         nb.add(color_tab, text=t("inductor.subtab.color"))
-        nb.add(reactance_tab, text=t("solver.tab"))
-        nb.add(coupling_tab, text=t("inductor.subtab.coupling"))
-        nb.add(transformer_tab, text=t("inductor.subtab.transformer"))
-        nb.add(combo_tab, text=t("inductor.subtab.combo"))
-
         self._build_color(color_tab)
-        self._build_coupling(coupling_tab)
-        self._build_transformer(transformer_tab)
-        self._build_combo_section(combo_tab)
 
-        chart_tab = TimeChartTab(
-            nb, ACCENT_C,
-            dc_fields=[
-                ParamField("l", t("inductor.chart.dc_field_l"), "10m"),
-                ParamField("resistance", t("inductor.chart.dc_field_r"), "100"),
-                ParamField("voltage", t("inductor.chart.dc_field_v"), "5"),
-            ],
-            ac_fields=[
-                ParamField("l", t("inductor.chart.dc_field_l"), "10m"),
-                ParamField("amplitude", t("resistor.chart.ac_field_amp"), "5"),
-                ParamField("frequency", t("common.frequency"), "1000"),
-            ],
-            signal_fn=inductor_signals,
-            dc_note=t("inductor.chart.dc_note"),
-            ac_note=t("inductor.chart.ac_note"),
-            title=t("inductor.chart.title"),
-        )
-        nb.add(chart_tab, text=t("inductor.subtab.chart"))
+        def framed(builder):
+            def make(parent):
+                f = ttk.Frame(parent, style="Card.TFrame")
+                builder(f)
+                return f
+            return make
+        lazy_tab(nb, t("solver.tab"), lambda p: FormulaSolverPanel(p, inductor_formulas(), ACCENT_C))
+        lazy_tab(nb, t("inductor.subtab.coupling"), lambda p: CouplingPanel(p, ACCENT_C))
+        lazy_tab(nb, t("inductor.subtab.transformer"), framed(self._build_transformer))
+        lazy_tab(nb, t("inductor.subtab.combo"), framed(self._build_combo_section))
+
+        def make_chart(parent):
+            return TimeChartTab(
+                parent, ACCENT_C,
+                dc_fields=[
+                    ParamField("l", t("inductor.chart.dc_field_l"), "10m"),
+                    ParamField("resistance", t("inductor.chart.dc_field_r"), "100"),
+                    ParamField("voltage", t("inductor.chart.dc_field_v"), "5"),
+                ],
+                ac_fields=[
+                    ParamField("l", t("inductor.chart.dc_field_l"), "10m"),
+                    ParamField("resistance", t("chart.series_r"), "0"),
+                    ParamField("amplitude", t("resistor.chart.ac_field_amp"), "5"),
+                    ParamField("frequency", t("common.frequency"), "1000"),
+                ],
+                signal_fn=inductor_signals,
+                dc_note=t("inductor.chart.dc_note"),
+                ac_note=t("inductor.chart.ac_note"),
+                title=t("inductor.chart.title"),
+                reactive="inductor",
+            )
+
+        lazy_tab(nb, t("inductor.subtab.chart"), make_chart)
 
         right_scroll = ScrollableFrame(right, style="Card.TFrame")
         right_scroll.grid(row=0, column=0, sticky="nsew")

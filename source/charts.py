@@ -5,6 +5,7 @@ generation functions (DC transient / AC steady-state waveforms).
 """
 import numpy as np
 import tkinter as tk
+from widgets import debounce_figure, smart_draw
 from tkinter import ttk
 
 import matplotlib
@@ -595,6 +596,7 @@ class MplChartFrame(ttk.Frame):
         super().__init__(parent, style="Card.TFrame")
         self.fig = Figure(figsize=figsize, dpi=100, facecolor=PLOT_BG)
         self.canvas = FigureCanvasTkAgg(self.fig, master=self)
+        debounce_figure(self.canvas)
         self.canvas.get_tk_widget().pack(fill="both", expand=True)
         if with_toolbar:
             toolbar_frame = tk.Frame(self, bg=PLOT_BG)
@@ -606,7 +608,7 @@ class MplChartFrame(ttk.Frame):
         self.fig.clear()
 
     def redraw(self):
-        self.canvas.draw()
+        smart_draw(self.canvas)
 
 
 # ---------------------------------------------------------------------------
@@ -627,8 +629,9 @@ class TimeChartTab(ttk.Frame):
     """
 
     def __init__(self, parent, accent, dc_fields, ac_fields, signal_fn,
-                 dc_note="", ac_note="", v_unit="V", i_unit="A", title="Simulation"):
+                 dc_note="", ac_note="", v_unit="V", i_unit="A", title="Simulation", reactive=None):
         super().__init__(parent, style="Card.TFrame")
+        self.reactive = reactive   # "capacitor" / "inductor" -> rich AC view
         self.accent = accent
         self.dc_fields = dc_fields
         self.ac_fields = ac_fields
@@ -689,6 +692,141 @@ class TimeChartTab(ttk.Frame):
             self.field_vars[field.key] = var
         self._simulate()
 
+    # ------------------------------------------------------------------
+    def _simulate_reactive_ac(self, kw):
+        """Rich AC view for a capacitor or inductor (optionally with a series R):
+        waveforms with the phase shift marked, instantaneous power (energy
+        stored / returned), phasor diagram, and reactance vs frequency."""
+        cap = self.reactive == "capacitor"
+        val = kw["c"] if cap else kw["l"]
+        r = max(0.0, kw.get("resistance", 0.0))
+        vp = kw["amplitude"]
+        f = kw["frequency"]
+        if val <= 0 or f <= 0 or vp <= 0:
+            raise ValueError("values must be > 0")
+        w = 2 * np.pi * f
+        x = -1 / (w * val) if cap else w * val          # signed reactance
+        z = complex(r, x)
+        zmag = abs(z)
+        phi_z = np.angle(z)                               # voltage leads current by phi_z
+        ip = vp / zmag
+        tt = np.linspace(0, 2 / f, 1000)
+        v = vp * np.sin(w * tt)
+        i = ip * np.sin(w * tt - phi_z)
+        p = v * i
+        tf, tp = eng_scale(tt)
+        cf, cp = eng_scale(i)
+        fig = self.chart.fig
+        fig.clear()
+        gs = fig.add_gridspec(2, 2, width_ratios=[1.6, 1], hspace=0.55, wspace=0.35)
+        ax = fig.add_subplot(gs[0, 0])
+        ax.set_facecolor(PLOT_BG)
+        ax.plot(tt / tf, v, color=V_COLOR, lw=2, label="v(t)")
+        ax.set_ylabel("V", color=V_COLOR)
+        ax2 = ax.twinx()
+        ax2.plot(tt / tf, i / cf, color=I_COLOR, lw=2, ls="--", label="i(t)")
+        ax2.set_ylabel(f"{cp}A", color=I_COLOR)
+        align_zero_axes(ax, ax2)
+        ax.axhline(0, color="#333", lw=1)
+        # mark the time shift between the voltage peak and the current peak
+        t_vpk = 0.25 / f
+        t_ipk = t_vpk + phi_z / w
+        if t_ipk < 0:
+            t_ipk += 1 / f
+        ax.axvline(t_vpk / tf, color=V_COLOR, lw=0.8, ls=":")
+        ax2.axvline(t_ipk / tf, color=I_COLOR, lw=0.8, ls=":")
+        y_mark = vp * 1.08
+        ax.annotate("", xy=(t_ipk / tf, y_mark), xytext=(t_vpk / tf, y_mark),
+                    arrowprops=dict(arrowstyle="<->", color="#6A4C93"))
+        lead = t("chart.i_leads") if phi_z < 0 else (t("chart.i_lags") if phi_z > 0 else "")
+        ax.text(max(t_vpk, t_ipk) / tf + 0.02 * tt[-1] / tf, y_mark, f"Δφ = {abs(np.degrees(phi_z)):.1f}°  {lead}",
+                ha="left", va="center", fontsize=8, color="#6A4C93",
+                bbox=dict(boxstyle="round,pad=0.15", fc="white", ec="none", alpha=0.8))
+        ax.set_ylim(-vp * 1.3, vp * 1.35)
+        ax.set_xlabel(f"t ({tp}s)")
+        ax.set_title(t("chart.ac_title"), fontsize=10)
+        ax.grid(True, alpha=0.25)
+        # power
+        axp = fig.add_subplot(gs[1, 0])
+        axp.set_facecolor(PLOT_BG)
+        pf_, pp = eng_scale(p)
+        axp.plot(tt / tf, p / pf_, color="#555", lw=1)
+        axp.fill_between(tt / tf, p / pf_, 0, where=p >= 0, color="#2A9D8F", alpha=0.35,
+                         label=t("chart.p_in"))
+        axp.fill_between(tt / tf, p / pf_, 0, where=p < 0, color="#c0392b", alpha=0.35,
+                         label=t("chart.p_back"))
+        axp.axhline(np.mean(p) / pf_, color="#1f2a44", lw=1.2, ls="--", label=t("chart.p_avg"))
+        axp.axhline(0, color="#333", lw=0.8)
+        axp.set_ylabel(f"p(t) ({pp}W)")
+        axp.set_xlabel(f"t ({tp}s)")
+        axp.legend(fontsize=7, loc="upper center", ncol=2, bbox_to_anchor=(0.5, -0.22), frameon=False)
+        axp.set_title(t("chart.power_title"), fontsize=10)
+        axp.grid(True, alpha=0.25)
+        # phasor diagram
+        axph = fig.add_subplot(gs[0, 1])
+        axph.set_facecolor(PLOT_BG)
+        axph.set_aspect("equal")
+        axph.set_xlim(-1.3, 1.3)
+        axph.set_ylim(-1.3, 1.3)
+        axph.axhline(0, color="#ccc", lw=1)
+        axph.axvline(0, color="#ccc", lw=1)
+        # reference: current along +x, voltages relative to it
+        items = [("I", 0.0, 1.0, I_COLOR)]
+        vr, vx = ip * r, ip * abs(x)
+        vmax = max(vp, 1e-12)
+        items.append(("V", phi_z, 1.0, V_COLOR))
+        if r > 0:
+            items.append(("VR", 0.0, vr / vmax, "#7a7a7a"))
+            items.append(("VC" if cap else "VL", np.sign(x) * np.pi / 2, vx / vmax, "#6A4C93"))
+        for lbl, ang, ln, col in items:
+            xx, yy = 0.95 * ln * np.cos(ang), 0.95 * ln * np.sin(ang)
+            axph.annotate("", xy=(xx, yy), xytext=(0, 0),
+                          arrowprops=dict(arrowstyle="-|>", color=col, lw=2, mutation_scale=14))
+            axph.text(xx * 1.15 + (0.08 if lbl == "VR" else 0), yy * 1.15 - (0.1 if lbl == "VR" else 0), lbl,
+                      color=col, fontsize=9, fontweight="bold", ha="center", va="center")
+        axph.set_xticks([])
+        axph.set_yticks([])
+        axph.set_title(t("chart.phasor_title"), fontsize=10)
+        # reactance vs frequency
+        axz = fig.add_subplot(gs[1, 1])
+        axz.set_facecolor(PLOT_BG)
+        fs = np.logspace(np.log10(f) - 2, np.log10(f) + 2, 200)
+        xs = 1 / (2 * np.pi * fs * val) if cap else 2 * np.pi * fs * val
+        axz.loglog(fs, xs, color=self.accent, lw=2, label=("Xc" if cap else "XL"))
+        if r > 0:
+            axz.loglog(fs, np.sqrt(r * r + xs * xs), color="#555", lw=1.2, ls="--", label="|Z|")
+            axz.axhline(r, color="#999", lw=0.8, ls=":")
+        axz.plot([f], [abs(x)], "o", color="#d97706", ms=7)
+        axz.set_xlabel("f (Hz)")
+        axz.set_ylabel("Ω")
+        axz.legend(fontsize=7)
+        axz.set_title(t("chart.reactance_title"), fontsize=10)
+        axz.grid(True, which="both", alpha=0.2)
+        fig.subplots_adjust(left=0.1, right=0.93, top=0.93, bottom=0.16, hspace=0.55)
+        self.chart.redraw()
+        # numbers
+        irms = ip / np.sqrt(2)
+        s_va = vp * ip / 2
+        p_w = s_va * np.cos(phi_z)
+        q = s_va * np.sin(phi_z)
+        if abs(p_w) < 1e-9 * s_va:      # ideal reactive part: remove floating-point noise
+            p_w = 0.0
+        if abs(q) < 1e-9 * s_va:
+            q = 0.0
+        e_pk = 0.5 * val * (vx ** 2 if cap else 0) if cap else 0.5 * val * ip ** 2
+        lines = [
+            f"{'Xc = 1/(2πfC)' if cap else 'XL = 2πfL'} = {format_value(float(f'{abs(x):.4g}'), 'Ω')}",
+            f"|Z| = √(R² + X²) = {format_value(float(f'{zmag:.4g}'), 'Ω')}",
+            f"I peak = {format_value(float(f'{ip:.4g}'), 'A')}   I rms = {format_value(float(f'{irms:.4g}'), 'A')}",
+            f"φ = {np.degrees(phi_z):+.1f}°   cos φ = {np.cos(phi_z):.3f}",
+            f"P = {format_value(float(f'{p_w:.4g}'), 'W')}   Q = {format_value(float(f'{q:.4g}'), 'VAR')}",
+            f"{t('chart.e_peak')} = {format_value(float(f'{e_pk:.4g}'), 'J')}",
+        ]
+        if r > 0:
+            fc = 1 / (2 * np.pi * r * val) if cap else r / (2 * np.pi * val)
+            lines.append(f"fc (|X| = R) = {format_value(float(f'{fc:.4g}'), 'Hz')}")
+        self.note_var.set("\n".join(lines) + "\n" + (self.ac_note or ""))
+
     def _simulate(self):
         try:
             kwargs = {key: parse_value(var.get()) for key, var in self.field_vars.items()}
@@ -696,6 +834,12 @@ class TimeChartTab(ttk.Frame):
             self.note_var.set(t("common.enter_valid_values"))
             return
         mode = self.mode.get()
+        if mode == "AC" and self.reactive:
+            try:
+                self._simulate_reactive_ac(kwargs)
+            except Exception as exc:
+                self.note_var.set(f"{t('common.could_not_simulate')}: {exc}")
+            return
         try:
             t_arr, v, i, tau, event_time = self.signal_fn(mode=mode, **kwargs)
         except Exception as exc:

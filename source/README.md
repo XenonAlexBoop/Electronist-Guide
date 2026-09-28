@@ -1,4 +1,4 @@
-# ⚡ The Electronist's Guide (v5.1)
+# ⚡ The Electronist's Guide (v5.3)
 
 An interactive, visual desktop app for learning about and calculating values
 for common electronic components — built with Python's `tkinter` for the UI
@@ -93,6 +93,52 @@ inductor — and simulate it in DC or AC:
   standard RC/RL cases, or the steady-state value for other combinations
   (an honest simplification — a full transient for reactive-on-both-sides
   networks would need 2nd-order analysis).
+
+## What's new in v5.3 (speed)
+
+- Pages are built the first time you open them (start-up ~20× faster, far fewer widgets alive).
+- Changing language or IEC/ANSI keeps you on the same page and only rebuilds that page.
+- Animations (Junction Visualizer, coupling, bridge, phasors) stop working while their page is
+  hidden and never request frames faster than the PC can draw them.
+- Charts render once per change: redraws wait until resizing/scrolling has settled and are
+  skipped while a chart is hidden.
+- One mouse-wheel handler scrolls the page under the pointer (nested pages no longer fight).
+- Dark mode removed.
+
+## What's new in v5.2
+
+- **Resistors**: the stray circle over the last colour band is gone; the useless DC/AC
+  chart sub-tab was removed.
+- **Capacitors / Inductors — AC chart**: four linked plots — v(t) and i(t) with the phase
+  shift marked, instantaneous power p(t) (energy in / energy returned), phasor diagram and
+  reactance vs frequency — plus optional series resistance, |Z|, φ, P, Q and peak energy.
+- **Inductor coupling**: animated cross-section of two coils — field lines from coil 1,
+  the part that links coil 2 (set by k), Lenz's-law opposing field when loaded, drag coil 2
+  or add an iron core; live scope of i1, v2 = M·di1/dt and i2.
+- **4-diode bridge**: redesigned page with the conducting pair highlighted; the load
+  resistor only appears once the smoothing capacitor is added (without it RL has no effect).
+- **Transistors — Chart / Simulate** is now a graphical load-line analysis for BJT, MOSFET
+  and JFET: input → current transfer curve, output curves with load line and Q point, and
+  the output waveform with clipping shown in red. Presets: linear amplifier, overdriven,
+  switch, centre Q.
+- **Junction Visualizer (FETs)**: new draggable VGS–VDS region map (like the BJT map) next
+  to the ID–VDS curve.
+- **JFET physics**: carriers speed up through the pinched neck (current continuity) and
+  fan out gradually into the drain instead of jumping to full width; same continuity rule
+  in the MOSFET channel.
+- **Op-amp non-inverting**: Rin no longer overlaps the + input wire.
+- **RF Band Explorer** (replaces the band table): frequency lookup (ITU band, IEEE/NATO
+  letter, λ, antenna lengths, path loss, matching allocations), clickable log-scale
+  spectrum map, 35+ allocations with per-region ranges, power limits, access rules,
+  channel plans with centre-frequency formulas and scaled channel drawings, plus ITU /
+  IEEE / NATO reference tables.
+- **Boolean solver**: gate diagrams of the entered expression and of the minimized SOP or
+  POS (with gate/input counts), an on-screen keypad and easier keyboard syntax
+  (`AB` = A·B, `&&`, `||`, `!`, `.`, words).
+- **Unit converter** reworked: one-value → all-units converter in 18 categories (incl.
+  SI-prefix electrical values, temperature, frequency/period/wavelength, AWG), linked
+  dB / level fields (W, dBm, dBW, Vrms, Vpk, Vpp, dBV, dBu, dBµV at any impedance),
+  number systems with a clickable bit grid, and the ADC/DAC calculator.
 
 ## What's new in v5.1 (Transistors)
 
@@ -190,15 +236,25 @@ electronist_guide/
 ├── solver.py            # "Solve for anything" formula calculator + R / C / L formula libraries
 ├── i18n_extra.py        # EN/RO strings for the v5.0 features
 ├── bias.py              # BJT/MOSFET/JFET Q-point (PSF) analyze & design formulas
+├── i18n_transistor.py   # EN/RO strings for v5.1 (transistors)
+├── i18n_v52.py          # EN/RO strings for v5.2
+├── transistor_models.py # BJT / MOSFET / JFET device models
+├── transistor_viz.py    # Junction Visualizer (animated carriers, region maps)
+├── transistor_circuits.py # Transistors > Basic Circuits
+├── transistor_graph.py  # Transistors > Chart / Simulate (graphical load-line analysis)
+├── logic/expr_diagram.py  # gate diagrams for the Boolean solver
+├── rf/band_data.py      # RF Band Explorer data; rf/band_table.py = the explorer UI
 ├── requirements.txt
 └── tabs/
-    ├── resistor.py     # Color Code | Calculator | Series/Parallel | Voltage Divider | Chart
+    ├── resistor.py     # Color Code | Calculator | Series/Parallel | Voltage Divider
     ├── capacitor.py    # Ceramic | Calculator | Series/Parallel | Chart
     ├── inductor.py     # Color Code | Calculator | Coupling | Transformer | Series/Parallel | Chart
+    ├── coupling_viz.py # Inductors > Coupling (animated magnetic coupling)
+    ├── unit_converter.py # Converter | dB & levels | Number systems | ADC/DAC
     ├── resistive_divider.py  # Resistors > Voltage Divider (R1..R4, RL, solve-for-anything, E-series)
     ├── ac_waveform.py  # AC Circuits > AC Quantities & Ripple
-    ├── diode.py        # LED Resistor Calc | Chart (I-V curve / rectifier)
-    ├── transistor.py   # Bias Calculator | Chart (switch / amplifier)
+    ├── diode.py        # LED Resistor Calc | Chart | 4-Diode Bridge
+    ├── transistor.py   # Junction Visualizer | Basic Circuits | Q-Point | Chart (load line)
     ├── opamp.py
     ├── battery.py
     ├── divider.py      # Voltage Divider / Filter simulator (new top-level tab)

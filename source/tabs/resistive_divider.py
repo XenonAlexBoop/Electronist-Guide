@@ -14,7 +14,7 @@ import math
 import tkinter as tk
 from tkinter import ttk
 
-from widgets import parse_value, format_value, ScrollableFrame, FONT_H2, FONT_BODY, FONT_MONO
+from widgets import parse_value, format_value, ScrollableFrame, FONT_H2, FONT_BODY, FONT_MONO, debounce
 import symbols as sym
 from solver import Formula, Var, solve_for
 from i18n import t
@@ -98,7 +98,7 @@ class ResistiveDividerPanel(ttk.Frame):
         self.canvas = tk.Canvas(body, height=270, bg=sym.CANVAS_BG, highlightthickness=0)
         self.canvas.grid(row=2, column=0, sticky="ew", padx=16, pady=6)
         self._cw = 0
-        self.canvas.bind("<Configure>", self._on_canvas)
+        self.canvas.bind("<Configure>", debounce(self.canvas, self._on_canvas, 100))
 
         # ---- inputs ----
         ttk.Label(body, text=t("vd.inputs_title"), font=FONT_H2, foreground=ACCENT_C,

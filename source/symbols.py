@@ -585,7 +585,7 @@ class SymbolGallery(ttk.Frame):
         self.canvas = tk.Canvas(self, height=self.CELL_H, bg=CANVAS_BG, highlightthickness=0, width=300)
         self.canvas.grid(row=3, column=0, sticky="ew", padx=16, pady=(0, 12))
         self._cols = 0
-        self.canvas.bind("<Configure>", self._on_resize)
+        self.canvas.bind("<Configure>", _debounce(self.canvas, self._on_resize, 100))
 
     def _on_resize(self, event):
         cols = max(1, int(event.width // self.CELL_W))
@@ -613,3 +613,8 @@ class SymbolGallery(ttk.Frame):
                 pass
             c.create_text(cx, r * self.CELL_H + self.CELL_H - 12, text=t(key),
                           font=("Segoe UI", 8), fill="#444")
+
+
+def _debounce(widget, func, ms):
+    from widgets import debounce
+    return debounce(widget, func, ms)

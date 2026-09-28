@@ -170,9 +170,9 @@ _TOKEN_RE = re.compile(r"""
       | (?P<XNOR>XNOR\b|⊙|<=>)
       | (?P<NAND>NAND\b)
       | (?P<NOR>NOR\b)
-      | (?P<XOR>XOR\b|⊕|\^)
-      | (?P<AND>AND\b|·|\*|&)
-      | (?P<OR>OR\b|\+|\|)
+      | (?P<XOR>XOR\b|⊕|⊻|\^)
+      | (?P<AND>AND\b|&&|·|⋅|•|∙|∧|×|\*|&|\.)
+      | (?P<OR>OR\b|\|\||∨|\+|\|)
       | (?P<PRIME>')
       | (?P<VAR>[A-Za-z][A-Za-z0-9_]*)
     )
@@ -200,7 +200,15 @@ def tokenize(text):
             # (shouldn't normally happen since re.IGNORECASE covers it,
             # this is just a safety net).
             kind = value.upper()
-        tokens.append((kind, value, pos))
+        start = m.end() - len(value)
+        if kind == "VAR" and len(value) > 1 and value.isalpha() and value.isupper():
+            # "ABC" typed without operators = A·B·C (implicit AND of single letters).
+            # Names with digits, underscores or lower-case letters (A1, x_in, Sel)
+            # stay whole.
+            for k, ch in enumerate(value):
+                tokens.append(("VAR", ch, start + k))
+        else:
+            tokens.append((kind, value, start))
         pos = m.end()
     tokens.append(("EOF", "", n))
     return tokens

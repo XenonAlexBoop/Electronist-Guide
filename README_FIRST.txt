@@ -1,4 +1,4 @@
-The Electronist's Guide v5.1 — Windows Build
+The Electronist's Guide v5.3 — Windows Build
 ==============================================
 
 HOW TO RUN
@@ -9,6 +9,37 @@ to the .exe (keep the .exe in this folder).
 
 Optional: run "Create_Desktop_Shortcut.bat" once to add a Desktop
 shortcut.
+
+WHAT'S NEW IN v5.3 (speed)
+--------------------------
+- Opens much faster: each page is built the first time you open it.
+- Switching language or IEC/ANSI keeps you on the same page.
+- Hidden animations and charts no longer use the CPU; charts redraw
+  once, after scrolling/resizing has settled.
+- Mouse wheel always scrolls the page under the pointer.
+- Dark mode removed.
+
+WHAT'S NEW IN v5.2
+------------------
+- Resistors: stray circle on the last band fixed; chart tab removed.
+- Capacitors / Inductors AC chart: waveforms with phase shift, power
+  p(t) (energy in / returned), phasor diagram, reactance vs frequency,
+  optional series R.
+- Inductor coupling: animated magnetic field between two coils (drag
+  coil 2, iron core, load + Lenz's law, live scope).
+- 4-diode bridge: new page; load resistor appears only with the
+  smoothing capacitor.
+- Transistors > Chart / Simulate: graphical load-line analysis (transfer
+  curve, load line + Q point, output waveform with clipping) for BJT,
+  MOSFET and JFET; FET Junction Visualizer gets a draggable region map;
+  JFET/MOSFET carriers now obey current continuity at the pinch-off.
+- Op-amp non-inverting: Rin no longer crosses the + input.
+- RF Band Explorer: frequency lookup, spectrum map, 35+ allocations with
+  per-region ranges, power, access rules and channel plans.
+- Boolean solver: logic diagrams of your expression and of the minimized
+  circuit, on-screen keypad, easier typing (AB = A·B, &&, ||, !).
+- Unit converter reworked: all-units converter (18 categories), linked
+  dB/level fields, number systems with clickable bits, ADC/DAC.
 
 WHAT'S NEW IN v5.1 (Transistors)
 --------------------------------

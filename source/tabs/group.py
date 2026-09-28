@@ -13,6 +13,7 @@ entry, matching the app's grouped navigation structure:
 """
 from tkinter import ttk
 from i18n import t
+from widgets import lazy_tab, build_lazy
 
 
 class GroupTab(ttk.Frame):
@@ -27,6 +28,10 @@ class GroupTab(ttk.Frame):
         nb = ttk.Notebook(self)
         nb.grid(row=0, column=0, sticky="nsew")
 
+        # pages are built the first time they are opened
+        first = None
         for key, cls in children:
-            frame = cls(nb)
-            nb.add(frame, text=t(key))
+            h = lazy_tab(nb, t(key), cls)
+            first = first or h
+        self.nb = nb
+        build_lazy(first)

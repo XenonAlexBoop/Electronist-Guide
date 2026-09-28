@@ -10,6 +10,7 @@ from combos import MixedBuilderPanel
 from solver import FormulaSolverPanel, capacitor_formulas
 from symbols import SymbolGallery
 from i18n import t
+from widgets import lazy_tab
 
 ACCENT_C = ACCENT["capacitor"]
 
@@ -37,33 +38,38 @@ class CapacitorTab(ttk.Frame):
         nb.grid(row=0, column=0, sticky="nsew")
 
         ceramic = ttk.Frame(nb, style="Card.TFrame")
-        reactance = FormulaSolverPanel(nb, capacitor_formulas(), ACCENT_C)
-        combo = ttk.Frame(nb, style="Card.TFrame")
         nb.add(ceramic, text=t("capacitor.subtab.ceramic"))
-        nb.add(reactance, text=t("solver.tab"))
-        nb.add(combo, text=t("capacitor.subtab.combo"))
-
         self._build_ceramic(ceramic)
-        self._build_combo_section(combo)
+        lazy_tab(nb, t("solver.tab"), lambda p: FormulaSolverPanel(p, capacitor_formulas(), ACCENT_C))
 
-        chart_tab = TimeChartTab(
-            nb, ACCENT_C,
-            dc_fields=[
-                ParamField("c", t("capacitor.chart.dc_field_c"), "100u"),
-                ParamField("resistance", t("capacitor.chart.dc_field_r"), "1000"),
-                ParamField("voltage", t("capacitor.chart.dc_field_v"), "5"),
-            ],
-            ac_fields=[
-                ParamField("c", t("capacitor.chart.ac_field_c"), "100n"),
-                ParamField("amplitude", t("resistor.chart.ac_field_amp"), "5"),
-                ParamField("frequency", t("common.frequency"), "1000"),
-            ],
-            signal_fn=capacitor_signals,
-            dc_note=t("capacitor.chart.dc_note"),
-            ac_note=t("capacitor.chart.ac_note"),
-            title=t("capacitor.chart.title"),
-        )
-        nb.add(chart_tab, text=t("capacitor.subtab.chart"))
+        def make_combo(parent):
+            f = ttk.Frame(parent, style="Card.TFrame")
+            self._build_combo_section(f)
+            return f
+        lazy_tab(nb, t("capacitor.subtab.combo"), make_combo)
+
+        def make_chart(parent):
+            return TimeChartTab(
+                parent, ACCENT_C,
+                dc_fields=[
+                    ParamField("c", t("capacitor.chart.dc_field_c"), "100u"),
+                    ParamField("resistance", t("capacitor.chart.dc_field_r"), "1000"),
+                    ParamField("voltage", t("capacitor.chart.dc_field_v"), "5"),
+                ],
+                ac_fields=[
+                    ParamField("c", t("capacitor.chart.ac_field_c"), "100n"),
+                    ParamField("resistance", t("chart.series_r"), "0"),
+                    ParamField("amplitude", t("resistor.chart.ac_field_amp"), "5"),
+                    ParamField("frequency", t("common.frequency"), "1000"),
+                ],
+                signal_fn=capacitor_signals,
+                dc_note=t("capacitor.chart.dc_note"),
+                ac_note=t("capacitor.chart.ac_note"),
+                title=t("capacitor.chart.title"),
+                reactive="capacitor",
+            )
+
+        lazy_tab(nb, t("capacitor.subtab.chart"), make_chart)
 
         right_scroll = ScrollableFrame(right, style="Card.TFrame")
         right_scroll.grid(row=0, column=0, sticky="nsew")

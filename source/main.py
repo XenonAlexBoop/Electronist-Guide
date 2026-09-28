@@ -33,6 +33,7 @@ from tabs.ac_circuits import ACCircuitsTab
 from tabs.modulation import ModulationTab
 from tabs.rf_simulator import RFSimulatorTab
 from rf.band_table import RFBandsView
+from widgets import lazy_tab, build_lazy
 
 BG = "#F1EFE9"
 CARD_BG = "#FFFFFF"
@@ -49,6 +50,28 @@ def setup_style(root):
         pass
 
     root.configure(bg=BG)
+    # base ttk colours
+    style.configure(".", background="#dcdad5", foreground="#000000", fieldbackground="#ffffff",
+                    troughcolor="#bab5ab", bordercolor="#9e9a91", lightcolor="#eeebe7", darkcolor="#cfcdc8",
+                    selectbackground="#4a6984", selectforeground="#ffffff", insertcolor="#000000")
+    style.map(".", background=[("disabled", "#dcdad5"), ("active", "#eeebe7")],
+              foreground=[("disabled", "#999999")])
+    style.configure("TEntry", fieldbackground="#ffffff", foreground="#000000", insertcolor="#000000")
+    style.configure("TCombobox", fieldbackground="#ffffff", foreground="#000000", arrowcolor="#000000")
+    style.map("TCombobox", fieldbackground=[("readonly", "#ffffff")], foreground=[("readonly", "#000000")],
+              selectbackground=[("readonly", "#ffffff")], selectforeground=[("readonly", "#000000")])
+    style.configure("Treeview", background="#ffffff", fieldbackground="#ffffff", foreground="#000000")
+    style.map("Treeview", background=[("selected", "#4a6984")], foreground=[("selected", "#ffffff")])
+    style.configure("Treeview.Heading", background="#dcdad5", foreground="#000000")
+    style.configure("TCheckbutton", background=CARD_BG, foreground="#000000", indicatorbackground="#ffffff")
+    style.configure("TRadiobutton", background=CARD_BG, foreground="#000000", indicatorbackground="#ffffff")
+    style.configure("TScale", background="#dcdad5", troughcolor="#bab5ab")
+    style.configure("TScrollbar", background="#dcdad5", troughcolor="#bab5ab", arrowcolor="#000000")
+    for pat, val in (("*TCombobox*Listbox.background", "#ffffff"), ("*TCombobox*Listbox.foreground", "#000000"),
+                     ("*Listbox.background", "#ffffff"), ("*Listbox.foreground", "#000000"),
+                     ("*Text.background", "#ffffff"), ("*Text.foreground", "#000000"),
+                     ("*Canvas.background", "#ffffff")):
+        root.option_add(pat, val)
 
     style.configure("TFrame", background=BG)
     style.configure("Tab.TFrame", background=BG)
@@ -68,7 +91,8 @@ def setup_style(root):
               foreground=[("selected", "#1f2a44"), ("!selected", "#555")])
 
     style.configure("TButton", padding=(10, 6), font=("Segoe UI", 10, "bold"),
-                     background="#1f2a44", foreground="white")
+                     background="#1f2a44",
+                     foreground="white")
     style.map("TButton", background=[("active", "#334166")])
 
     style.configure("Small.TButton", padding=(6, 2), font=("Segoe UI", 8, "bold"))
@@ -238,15 +262,60 @@ class ElectronistGuideApp(tk.Tk):
         self.iec_btn.configure(style="LangActive.TButton" if style == "IEC" else "LangInactive.TButton")
         self.ansi_btn.configure(style="LangActive.TButton" if style == "ANSI" else "LangInactive.TButton")
 
+        path = self._selected_path() if getattr(self, "notebook", None) is not None else []
         for child in self.notebook_container.winfo_children():
             child.destroy()
 
         notebook = ttk.Notebook(self.notebook_container)
         notebook.pack(fill="both", expand=True)
+        self.notebook = notebook
 
-        for key, cls in TAB_SPECS:
-            frame = cls(notebook)
-            notebook.add(frame, text=t(key))
+        # Pages are created the first time they are opened (much faster
+        # start-up and language switching).
+        holders = [lazy_tab(notebook, t(key), cls) for key, cls in TAB_SPECS]
+        build_lazy(holders[0])
+        if path:
+            self._restore_path(path)
+
+    # remember which page (and sub-pages) are open across a rebuild
+    @staticmethod
+    def _inner_notebook(w):
+        stack = [w]
+        while stack:
+            c = stack.pop(0)
+            if isinstance(c, ttk.Notebook):
+                return c
+            try:
+                stack.extend(c.winfo_children())
+            except tk.TclError:
+                pass
+        return None
+
+    def _selected_path(self):
+        path, nb = [], self.notebook
+        while nb is not None:
+            try:
+                cur = nb.select()
+                if not cur:
+                    break
+                path.append(nb.index(cur))
+                nb = self._inner_notebook(nb.nametowidget(cur))
+            except tk.TclError:
+                break
+        return path
+
+    def _restore_path(self, path):
+        nb = self.notebook
+        for idx in path:
+            if nb is None:
+                break
+            try:
+                nb.select(idx)
+                page = nb.nametowidget(nb.select())
+            except tk.TclError:
+                break
+            build_lazy(page)
+            nb = self._inner_notebook(page)
 
     def rebuild(self):
         self._build_ui()

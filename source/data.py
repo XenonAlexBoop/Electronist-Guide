@@ -29,6 +29,7 @@ COLOR_CODE = {
     "None":   {"digit": None, "multiplier": None, "tolerance": 20, "tempco": None, "hex": "#EDE6DA"},
 }
 
+
 DIGIT_COLORS = [c for c, v in COLOR_CODE.items() if v["digit"] is not None]
 MULTIPLIER_COLORS = [c for c, v in COLOR_CODE.items() if v["multiplier"] is not None]
 TOLERANCE_COLORS = [c for c, v in COLOR_CODE.items() if v["tolerance"] is not None]

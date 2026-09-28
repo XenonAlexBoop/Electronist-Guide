@@ -7,7 +7,6 @@ from widgets import (TheoryPanel, ScrollableFrame, format_value, parse_value, pa
                       series_sum, parallel_combo, FONT_H1, FONT_H2, FONT_BODY, FONT_MONO, ACCENT)
 from combos import MixedBuilderPanel
 from .resistive_divider import ResistiveDividerPanel
-from charts import TimeChartTab, ParamField, resistor_signals
 from solver import FormulaSolverPanel, resistor_formulas
 from symbols import SymbolGallery
 from i18n import t
@@ -40,27 +39,10 @@ class ResistorTab(ttk.Frame):
         combo_tab = ttk.Frame(nb, style="Card.TFrame")
         divider_tab = ResistiveDividerPanel(nb)
         solver_tab = FormulaSolverPanel(nb, resistor_formulas(), ACCENT_C)
-        chart_tab = TimeChartTab(
-            nb, ACCENT_C,
-            dc_fields=[
-                ParamField("r", t("resistor.chart.dc_field_r"), "220"),
-                ParamField("voltage", t("resistor.chart.dc_field_v"), "5"),
-            ],
-            ac_fields=[
-                ParamField("r", t("resistor.chart.dc_field_r"), "220"),
-                ParamField("amplitude", t("resistor.chart.ac_field_amp"), "5"),
-                ParamField("frequency", t("common.frequency"), "50"),
-            ],
-            signal_fn=resistor_signals,
-            dc_note=t("resistor.chart.dc_note"),
-            ac_note=t("resistor.chart.ac_note"),
-            title=t("resistor.chart.title"),
-        )
         nb.add(color_tab, text=t("resistor.subtab.color"))
         nb.add(solver_tab, text=t("solver.tab"))
         nb.add(combo_tab, text=t("resistor.subtab.combo"))
         nb.add(divider_tab, text=t("resistor.subtab.divider"))
-        nb.add(chart_tab, text=t("resistor.subtab.chart"))
 
         self._build_calculator(color_tab)
         self._build_combo_section(combo_tab)

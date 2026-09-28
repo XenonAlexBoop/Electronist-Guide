@@ -9,14 +9,17 @@ Two inner pages:
     diagram that can be animated (continuously rotated) over time.
 """
 import math
+import time
 import numpy as np
 import tkinter as tk
+from widgets import is_shown
 from tkinter import ttk
 
 from charts import MplChartFrame, PLOT_BG
 from widgets import parse_value, FONT_H1, FONT_H2, FONT_BODY, FONT_MONO, ScrollableFrame, TheoryPanel
 from data import get_theory
 from i18n import t
+from widgets import lazy_tab, build_lazy
 from tabs.ac_waveform import ACWaveformPanel
 
 ACCENT_C = "#277DA1"
@@ -355,10 +358,17 @@ class PowerSystemsPanel(ttk.Frame):
             self._anim_job = None
 
     def _tick(self):
+        if not is_shown(self):
+            self._anim_job = self.after(300, self._tick)
+            return
+        start = time.perf_counter()
         self._rotation = (self._rotation + self.ANIM_STEP_RAD) % (2 * math.pi)
         self._redraw_phasors()
-        self._redraw_waveform()
-        self._anim_job = self.after(self.ANIM_INTERVAL_MS, self._tick)
+        if not self._move_wave_cursor():
+            self._redraw_waveform()
+        # never schedule faster than drawing takes, so the UI stays responsive
+        spent = int((time.perf_counter() - start) * 1000)
+        self._anim_job = self.after(max(self.ANIM_INTERVAL_MS, 2 * spent), self._tick)
 
     def _compute(self):
         if not self._ready:
@@ -432,9 +442,24 @@ class PowerSystemsPanel(ttk.Frame):
             return
         rotated = [dict(p, angle=p["angle"] + self._rotation) for p in self._last_phasors]
         draw_phasor_diagram(self.chart.fig, rotated)
-        self.chart.redraw()
+        self.chart.canvas.draw_idle()
+
+    def _move_wave_cursor(self):
+        """Animation frame: only move the cursor dots/line (no re-layout)."""
+        wc = getattr(self, "_wave_cursor", None)
+        if not wc or not self._wave_angles or len(wc[0]) != len(self._wave_angles):
+            return False
+        cursors, vline, w, period = wc
+        cursor_t = ((self._rotation / (2 * math.pi)) % 1.0) * period
+        for mv, mi, ang in cursors:
+            mv.set_data([cursor_t], [math.sin(w * cursor_t + ang)])
+            mi.set_data([cursor_t], [0.6 * math.sin(w * cursor_t + ang - self._wave_phi)])
+        vline.set_xdata([cursor_t, cursor_t])
+        self.wave_chart.canvas.draw_idle()
+        return True
 
     def _redraw_waveform(self):
+        self._wave_cursor = None
         if not self._wave_angles:
             return
         freq = self._wave_freq
@@ -448,6 +473,7 @@ class PowerSystemsPanel(ttk.Frame):
         fig.clear()
         ax = fig.add_subplot(111)
         ax.set_facecolor(PLOT_BG)
+        cursors = []
         for idx, ang in enumerate(self._wave_angles):
             color = PHASE_COLORS[idx % len(PHASE_COLORS)]
             # Use sin() here (not cos()) so the waveform's height matches the
@@ -460,10 +486,12 @@ class PowerSystemsPanel(ttk.Frame):
             ax.plot(t_arr, i_curve, color=color, linewidth=1.3, linestyle="--")
             v_now = math.sin(w * cursor_t + ang)
             i_now = 0.6 * math.sin(w * cursor_t + ang - self._wave_phi)
-            ax.plot([cursor_t], [v_now], marker="o", color=color, markersize=7, zorder=5)
-            ax.plot([cursor_t], [i_now], marker="o", color=color, markersize=6,
-                    markerfacecolor="white", markeredgewidth=1.5, zorder=5)
-        ax.axvline(cursor_t, color="#999", linestyle=":", linewidth=1.2)
+            mv, = ax.plot([cursor_t], [v_now], marker="o", color=color, markersize=7, zorder=5)
+            mi, = ax.plot([cursor_t], [i_now], marker="o", color=color, markersize=6,
+                          markerfacecolor="white", markeredgewidth=1.5, zorder=5)
+            cursors.append((mv, mi, ang))
+        vline = ax.axvline(cursor_t, color="#999", linestyle=":", linewidth=1.2)
+        self._wave_cursor = (cursors, vline, w, period)
         ax.set_ylim(-1.35, 1.35)
         ax.set_xlim(0, period)
         ax.set_xlabel(t("common.time_s"))
@@ -487,13 +515,12 @@ class ACCircuitsTab(ttk.Frame):
         nb = ttk.Notebook(self)
         nb.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=20, pady=(0, 10))
 
-        waveform_page = ACWaveformPanel(nb)
-        passive_page = PassiveACPanel(nb)
-        power_page = PowerSystemsPanel(nb)
-        theory_scroll = ScrollableFrame(nb, style="Card.TFrame")
-        TheoryPanel(theory_scroll.body, get_theory("ac_circuits"), accent=ACCENT_C)\
-            .pack(fill="both", expand=True)
-        nb.add(waveform_page, text=t("acw.tab"))
-        nb.add(passive_page, text=t("ac.subtab.passive"))
-        nb.add(power_page, text=t("ac.subtab.power"))
-        nb.add(theory_scroll, text=t("common.learn"))
+        def theory(parent):
+            sf = ScrollableFrame(parent, style="Card.TFrame")
+            TheoryPanel(sf.body, get_theory("ac_circuits"), accent=ACCENT_C).pack(fill="both", expand=True)
+            return sf
+        first = lazy_tab(nb, t("acw.tab"), ACWaveformPanel)
+        lazy_tab(nb, t("ac.subtab.passive"), PassiveACPanel)
+        lazy_tab(nb, t("ac.subtab.power"), PowerSystemsPanel)
+        lazy_tab(nb, t("common.learn"), theory)
+        build_lazy(first)

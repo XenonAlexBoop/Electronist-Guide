@@ -3,7 +3,7 @@ from tkinter import ttk
 
 from data import get_theory
 from drawing import draw_gate_symbol, draw_timing_diagram
-from widgets import TheoryPanel, ScrollableFrame, FONT_H1, FONT_H2, FONT_BODY, FONT_MONO, ACCENT
+from widgets import TheoryPanel, ScrollableFrame, FONT_H1, FONT_H2, FONT_BODY, FONT_MONO, ACCENT, debounce
 from logic.boolexpr import parse, ParseError
 from logic.truthtable import build_truth_table
 from logic.minimize import minimize
@@ -271,43 +271,44 @@ class DigitalLogicTab(ttk.Frame):
             .grid(row=0, column=0, sticky="w", padx=16, pady=(14, 4))
 
         self.solver_entry_var = tk.StringVar()
-        entry = ttk.Entry(parent, textvariable=self.solver_entry_var, font=FONT_MONO, width=38)
+        entry = ttk.Entry(parent, textvariable=self.solver_entry_var, font=FONT_MONO, width=48)
+        self.solver_entry = entry
         entry.grid(row=1, column=0, sticky="w", padx=16)
         entry.bind("<KeyRelease>", lambda e: self._on_solver_change())
 
         ttk.Label(parent, text=t("digital.solver.placeholder_hint"), font=(FONT_BODY[0], 8),
-                  foreground="#777", style="CardBody.TLabel").grid(row=2, column=0, sticky="w", padx=16, pady=(2, 0))
+                  foreground="#777", style="CardBody.TLabel").grid(row=3, column=0, sticky="w", padx=16, pady=(2, 0))
         ttk.Label(parent, text=t("digital.solver.syntax_hint"), font=(FONT_BODY[0], 8),
-                  foreground="#777", style="CardBody.TLabel", wraplength=380, justify="left")\
-            .grid(row=3, column=0, sticky="w", padx=16, pady=(2, 10))
+                  foreground="#777", style="CardBody.TLabel", wraplength=900, justify="left")\
+            .grid(row=4, column=0, sticky="w", padx=16, pady=(2, 10))
 
         self.solver_status_var = tk.StringVar(value=t("digital.solver.empty"))
         ttk.Label(parent, textvariable=self.solver_status_var, font=FONT_BODY, style="CardBody.TLabel",
-                  wraplength=380, justify="left").grid(row=4, column=0, sticky="w", padx=16, pady=(0, 4))
+                  wraplength=900, justify="left").grid(row=5, column=0, sticky="w", padx=16, pady=(0, 4))
 
         self.solver_symbolic_var = tk.StringVar()
         ttk.Label(parent, textvariable=self.solver_symbolic_var, font=FONT_MONO, foreground=ACCENT_C,
-                  style="CardFormula.TLabel", wraplength=380, justify="left")\
-            .grid(row=5, column=0, sticky="w", padx=16)
+                  style="CardFormula.TLabel", wraplength=900, justify="left")\
+            .grid(row=6, column=0, sticky="w", padx=16)
         self.solver_words_var = tk.StringVar()
         ttk.Label(parent, textvariable=self.solver_words_var, font=FONT_MONO, foreground=ACCENT_C,
-                  style="CardFormula.TLabel", wraplength=380, justify="left")\
-            .grid(row=6, column=0, sticky="w", padx=16, pady=(0, 10))
+                  style="CardFormula.TLabel", wraplength=900, justify="left")\
+            .grid(row=7, column=0, sticky="w", padx=16, pady=(0, 10))
 
         ttk.Label(parent, text=t("digital.truth_table"), font=FONT_H2, style="CardSub.TLabel")\
-            .grid(row=7, column=0, sticky="w", padx=16, pady=(4, 2))
+            .grid(row=8, column=0, sticky="w", padx=16, pady=(4, 2))
         self.solver_table_frame = ttk.Frame(parent, style="Card.TFrame")
-        self.solver_table_frame.grid(row=8, column=0, sticky="w", padx=16, pady=(0, 10))
+        self.solver_table_frame.grid(row=9, column=0, sticky="w", padx=16, pady=(0, 10))
         self.solver_table = None
 
         # Boolean simplification: canonical -> minimal SOP/POS, with an
         # optional derivation trace generated from the actual Quine-
         # McCluskey run (not separately-written text).
         ttk.Label(parent, text=t("digital.solver.simplification_title"),
-                  font=FONT_H2, style="CardSub.TLabel").grid(row=9, column=0, sticky="w", padx=16, pady=(4, 4))
+                  font=FONT_H2, style="CardSub.TLabel").grid(row=10, column=0, sticky="w", padx=16, pady=(4, 4))
 
         simp = ttk.Frame(parent, style="Card.TFrame")
-        simp.grid(row=10, column=0, sticky="w", padx=16, pady=(0, 4))
+        simp.grid(row=11, column=0, sticky="w", padx=16, pady=(0, 4))
 
         self.canon_sop_var = tk.StringVar()
         self.min_sop_var = tk.StringVar()
@@ -317,28 +318,28 @@ class DigitalLogicTab(ttk.Frame):
         ttk.Label(simp, text=t("digital.solver.canonical_sop"), font=FONT_BODY, style="CardBody.TLabel")\
             .grid(row=0, column=0, sticky="nw", pady=2)
         ttk.Label(simp, textvariable=self.canon_sop_var, font=FONT_MONO, style="CardBody.TLabel",
-                  wraplength=300, justify="left").grid(row=0, column=1, sticky="w", padx=(8, 0), pady=2)
+                  wraplength=760, justify="left").grid(row=0, column=1, sticky="w", padx=(8, 0), pady=2)
 
         ttk.Label(simp, text=t("digital.solver.minimal_sop"), font=FONT_BODY, style="CardBody.TLabel")\
             .grid(row=1, column=0, sticky="nw", pady=2)
         ttk.Label(simp, textvariable=self.min_sop_var, font=FONT_MONO, foreground=ACCENT_C,
-                  style="CardFormula.TLabel", wraplength=300, justify="left")\
+                  style="CardFormula.TLabel", wraplength=760, justify="left")\
             .grid(row=1, column=1, sticky="w", padx=(8, 0), pady=2)
 
         ttk.Label(simp, text=t("digital.solver.canonical_pos"), font=FONT_BODY, style="CardBody.TLabel")\
             .grid(row=2, column=0, sticky="nw", pady=2)
         ttk.Label(simp, textvariable=self.canon_pos_var, font=FONT_MONO, style="CardBody.TLabel",
-                  wraplength=300, justify="left").grid(row=2, column=1, sticky="w", padx=(8, 0), pady=2)
+                  wraplength=760, justify="left").grid(row=2, column=1, sticky="w", padx=(8, 0), pady=2)
 
         ttk.Label(simp, text=t("digital.solver.minimal_pos"), font=FONT_BODY, style="CardBody.TLabel")\
             .grid(row=3, column=0, sticky="nw", pady=2)
         ttk.Label(simp, textvariable=self.min_pos_var, font=FONT_MONO, foreground=ACCENT_C,
-                  style="CardFormula.TLabel", wraplength=300, justify="left")\
+                  style="CardFormula.TLabel", wraplength=760, justify="left")\
             .grid(row=3, column=1, sticky="w", padx=(8, 0), pady=2)
 
         self.steps_visible = False
         self.steps_btn = ttk.Button(parent, text=t("digital.solver.show_steps"), command=self._toggle_steps)
-        self.steps_btn.grid(row=11, column=0, sticky="w", padx=16, pady=(6, 4))
+        self.steps_btn.grid(row=13, column=0, sticky="w", padx=16, pady=(6, 4))
 
         self.steps_frame = ttk.Frame(parent, style="Card.TFrame")
         # not gridded until toggled on
@@ -356,13 +357,128 @@ class DigitalLogicTab(ttk.Frame):
 
         self._minimization = None
 
+        self._build_keypad(parent, 2)
+        self._build_diagrams(parent, 12)
+
         self.solver_entry_var.set("A·B + ¬A·C")
         self._on_solver_change()
+
+    # ---- keypad: build the expression with the mouse --------------------
+    def _build_keypad(self, parent, row):
+        kp = ttk.Frame(parent, style="Card.TFrame")
+        kp.grid(row=row, column=0, sticky="w", padx=16, pady=(6, 2))
+        rows = [
+            [(v, v) for v in "ABCDEFGH"],
+            [("·  AND", "·"), ("+  OR", " + "), ("′  NOT", "'"), ("¬(", "¬("), ("⊕  XOR", " ⊕ "),
+             ("(", "("), (")", ")")],
+            [("NAND", " NAND "), ("NOR", " NOR "), ("XNOR", " XNOR "), ("←", "<LEFT>"), ("→", "<RIGHT>"),
+             ("⌫", "<BS>"), (t("digital.kp.clear"), "<CLR>")],
+        ]
+        for r, items in enumerate(rows):
+            fr = ttk.Frame(kp, style="Card.TFrame")
+            fr.grid(row=r, column=0, sticky="w", pady=1)
+            for label, ins in items:
+                w = 4 if len(label) <= 2 else 8
+                ttk.Button(fr, text=label, width=w, style="Small.TButton",
+                           command=lambda s_=ins: self._kp_press(s_)).pack(side="left", padx=1)
+        ex = ttk.Frame(kp, style="Card.TFrame")
+        ex.grid(row=3, column=0, sticky="w", pady=(4, 0))
+        ttk.Label(ex, text=t("digital.kp.examples"), font=("Segoe UI", 8, "bold"), style="CardBody.TLabel")\
+            .pack(side="left")
+        for e in ("AB + A'C + BC", "A ⊕ B ⊕ C", "(A + B)(A + C)", "A'B'C + A'BC + AB'C + ABC", "ABC + AB'C + A'BC'D"):
+            ttk.Button(ex, text=e, style="Small.TButton",
+                       command=lambda e=e: (self.solver_entry_var.set(e), self._on_solver_change()))\
+                .pack(side="left", padx=2)
+
+    def _kp_press(self, ins):
+        e = self.solver_entry
+        pos = e.index("insert")
+        txt = self.solver_entry_var.get()
+        if ins == "<CLR>":
+            self.solver_entry_var.set("")
+        elif ins == "<BS>":
+            if pos > 0:
+                e.delete(pos - 1)
+        elif ins == "<LEFT>":
+            e.icursor(max(0, pos - 1))
+        elif ins == "<RIGHT>":
+            e.icursor(min(len(txt), pos + 1))
+        else:
+            e.insert(pos, ins)
+        e.focus_set()
+        self._on_solver_change()
+
+    # ---- gate diagrams of the entered and the minimized expression -------
+    def _build_diagrams(self, parent, row):
+        box = ttk.Frame(parent, style="Card.TFrame")
+        box.grid(row=row, column=0, sticky="ew", padx=16, pady=(8, 4))
+        box.columnconfigure(0, weight=1)
+        ttk.Label(box, text=t("digital.diag.title"), font=FONT_H2, style="CardSub.TLabel")\
+            .grid(row=0, column=0, sticky="w")
+        self.diag_mode = tk.StringVar(value="sop")
+        mr = ttk.Frame(box, style="Card.TFrame")
+        mr.grid(row=1, column=0, sticky="w", pady=(2, 4))
+        ttk.Label(mr, text=t("digital.diag.min_form"), font=FONT_BODY, style="CardBody.TLabel").pack(side="left")
+        for val, key in (("sop", "digital.solver.minimal_sop"), ("pos", "digital.solver.minimal_pos")):
+            ttk.Radiobutton(mr, text=t(key), value=val, variable=self.diag_mode,
+                            command=self._draw_diagrams).pack(side="left", padx=6)
+        self.diag_cap1 = tk.StringVar()
+        self.diag_cap2 = tk.StringVar()
+        ttk.Label(box, textvariable=self.diag_cap1, font=("Segoe UI", 10, "bold"), style="CardBody.TLabel")\
+            .grid(row=2, column=0, sticky="w")
+        self.diag_in = tk.Canvas(box, height=120, bg="white", highlightthickness=1, highlightbackground="#ddd")
+        self.diag_in.grid(row=3, column=0, sticky="ew", pady=(2, 8))
+        ttk.Label(box, textvariable=self.diag_cap2, font=("Segoe UI", 10, "bold"), foreground=ACCENT_C,
+                  style="CardBody.TLabel").grid(row=4, column=0, sticky="w")
+        self.diag_min = tk.Canvas(box, height=120, bg="white", highlightthickness=1, highlightbackground="#ddd")
+        self.diag_min.grid(row=5, column=0, sticky="ew", pady=(2, 4))
+        self.diag_note = tk.StringVar()
+        ttk.Label(box, textvariable=self.diag_note, font=("Segoe UI", 9), style="CardBody.TLabel",
+                  wraplength=900, justify="left").grid(row=6, column=0, sticky="w")
+        self._diag_nodes = (None, None)
+        for c in (self.diag_in, self.diag_min):
+            c.bind("<Configure>", debounce(c, lambda *a: self._draw_diagrams(), 120))
+
+    def _draw_one(self, canvas, node):
+        canvas.delete("all")
+        if node is None:
+            canvas.configure(height=40)
+            return None
+        from logic import expr_diagram as xd
+        w, h = xd.layout_size(node)
+        avail = max(canvas.winfo_width(), 400)
+        col_w = xd.COL_W
+        depth_cols = max(1, (w - xd.LEFT - 80) / xd.COL_W)
+        if w > avail:
+            col_w = max(56, (avail - xd.LEFT - 90) / depth_cols)
+        ww, hh, gates, ins = xd.draw(canvas, node, 6, 4, col_w=col_w)
+        canvas.configure(height=max(60, hh + 8))
+        return gates, ins
+
+    def _draw_diagrams(self):
+        if not hasattr(self, "diag_in"):
+            return
+        entered, mres = self._diag_nodes
+        c1 = self._draw_one(self.diag_in, entered)
+        mnode = None
+        if mres is not None:
+            mnode = mres.minimal_sop if self.diag_mode.get() == "sop" else mres.minimal_pos
+        c2 = self._draw_one(self.diag_min, mnode)
+        fmt = t("digital.diag.cost")
+        self.diag_cap1.set(t("digital.diag.entered") + ("   (" + fmt.format(g=c1[0], i=c1[1]) + ")" if c1 else ""))
+        self.diag_cap2.set(t("digital.diag.minimized") + ("   (" + fmt.format(g=c2[0], i=c2[1]) + ")" if c2 else ""))
+        if c1 and c2:
+            if (c2[0], c2[1]) < (c1[0], c1[1]):
+                self.diag_note.set(t("digital.diag.saved").format(g=c1[0] - c2[0], i=c1[1] - c2[1]))
+            else:
+                self.diag_note.set(t("digital.diag.already_min"))
+        else:
+            self.diag_note.set("")
 
     def _toggle_steps(self):
         self.steps_visible = not self.steps_visible
         if self.steps_visible:
-            self.steps_frame.grid(row=12, column=0, sticky="w", padx=16)
+            self.steps_frame.grid(row=14, column=0, sticky="w", padx=16)
             self.steps_btn.configure(text=t("digital.solver.hide_steps"))
         else:
             self.steps_frame.grid_forget()
@@ -419,6 +535,8 @@ class DigitalLogicTab(ttk.Frame):
         self.canon_pos_var.set("Y = " + self._minimization.canonical_pos.to_symbolic())
         self.min_pos_var.set("Y = " + self._minimization.minimal_pos.to_symbolic())
         self._update_steps_text()
+        self._diag_nodes = (node, self._minimization)
+        self._draw_diagrams()
 
     def _clear_simplification(self):
         self.canon_sop_var.set("")
@@ -427,6 +545,8 @@ class DigitalLogicTab(ttk.Frame):
         self.min_pos_var.set("")
         self._minimization = None
         self._update_steps_text()
+        self._diag_nodes = (None, None)
+        self._draw_diagrams()
 
     def _clear_solver_table(self):
         if self.solver_table is not None:

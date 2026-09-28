@@ -17,6 +17,8 @@ from i18n import t
 from symbols import SymbolGallery
 from transistor_viz import JunctionVisualizer
 from transistor_circuits import TransistorCircuitsPanel
+from transistor_graph import GraphicalAnalysisPanel
+from widgets import lazy_tab, build_lazy
 
 ACCENT_C = ACCENT["transistor"]
 
@@ -91,6 +93,11 @@ class TransistorTab(ttk.Frame):
         self._rebuild_content()
 
     def _rebuild_content(self):
+        prev_nb = getattr(self, "_sub_nb", None)
+        try:
+            self._sub_index = prev_nb.index(prev_nb.select()) if prev_nb is not None else 0
+        except Exception:
+            self._sub_index = 0
         if self._active_sim is not None:
             self._active_sim.stop()
             self._active_sim = None
@@ -112,31 +119,29 @@ class TransistorTab(ttk.Frame):
         nb = ttk.Notebook(left)
         nb.grid(row=0, column=0, sticky="nsew")
 
-        vis_tab = ttk.Frame(nb, style="Card.TFrame")
-        bias_tab = ttk.Frame(nb, style="Card.TFrame")
-        circ_tab = ttk.Frame(nb, style="Card.TFrame")
-        nb.add(vis_tab, text=t("transistor.subtab.visualizer"))
-        nb.add(circ_tab, text=t("tc.tab"))
-        nb.add(bias_tab, text=t("transistor.subtab.bias"))
-        TransistorCircuitsPanel(circ_tab, family, polarity, ACCENT_C).pack(fill="both", expand=True)
+        self._sub_nb = nb
 
-        # Wrap each sub-tab's real content in a ScrollableFrame so that
-        # sliders/parameters are never clipped when the window is
-        # maximized/fullscreen or otherwise shorter than the content
-        # (e.g. the bias calculator's circuit diagram + fields + result).
-        vis_scroll = ScrollableFrame(vis_tab, style="Card.TFrame")
-        vis_scroll.pack(fill="both", expand=True)
-        bias_scroll = ScrollableFrame(bias_tab, style="Card.TFrame")
-        bias_scroll.pack(fill="both", expand=True)
+        # Each sub-tab is built the first time it is opened. Scrollable
+        # wrappers keep sliders/parameters reachable on short windows.
+        def vis(parent):
+            sf = ScrollableFrame(parent, style="Card.TFrame")
+            self._build_visualizer(sf.body, family, polarity)
+            return sf
 
-        self._build_visualizer(vis_scroll.body, family, polarity)
-        self._build_bias_calculator(bias_scroll.body, family, polarity)
+        def bias(parent):
+            sf = ScrollableFrame(parent, style="Card.TFrame")
+            self._build_bias_calculator(sf.body, family, polarity)
+            return sf
 
-        chart_tab = ttk.Frame(nb, style="Card.TFrame")
-        nb.add(chart_tab, text=t("transistor.subtab.chart"))
-        chart_scroll = ScrollableFrame(chart_tab, style="Card.TFrame")
-        chart_scroll.pack(fill="both", expand=True)
-        self._build_chart(chart_scroll.body, family, polarity)
+        holders = [
+            lazy_tab(nb, t("transistor.subtab.visualizer"), vis),
+            lazy_tab(nb, t("tc.tab"), lambda p: TransistorCircuitsPanel(p, family, polarity, ACCENT_C)),
+            lazy_tab(nb, t("transistor.subtab.bias"), bias),
+            lazy_tab(nb, t("transistor.subtab.chart"), lambda p: GraphicalAnalysisPanel(p, family, polarity, ACCENT_C)),
+        ]
+        idx = min(getattr(self, "_sub_index", 0), len(holders) - 1)
+        nb.select(idx)
+        build_lazy(holders[idx])
 
         right_scroll = ScrollableFrame(right, style="Card.TFrame")
         right_scroll.grid(row=0, column=0, sticky="nsew")

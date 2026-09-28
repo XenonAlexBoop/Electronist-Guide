@@ -18,13 +18,15 @@ Layout
 Everything shown comes from transistor_models - no hand-tuned visuals.
 """
 import math
+import time
 import random
 import tkinter as tk
+from widgets import is_shown
 from tkinter import ttk
 
 import transistor_models as tm
 import symbols as sym
-from widgets import format_value, parse_value, FONT_BODY, FONT_H2, FONT_MONO
+from widgets import format_value, parse_value, FONT_BODY, FONT_H2, FONT_MONO, debounce
 from i18n import t
 
 TICK_MS = 40
@@ -166,6 +168,33 @@ class PiecewiseSlider(ttk.Frame):
         return self.value
 
 
+def _continuity_map(width_fn, n=160, min_w=0.12):
+    """Current continuity: the same number of carriers per second must pass
+    every cross-section, so where the conducting path is narrow they move
+    faster (v ~ 1/width). Returns f(p) -> x fraction (0..1) such that a
+    particle advancing p at constant rate spends time proportional to the
+    local width at each x."""
+    ws = [max(min_w, width_fn(i / n)) for i in range(n + 1)]
+    cum = [0.0]
+    for a, b in zip(ws, ws[1:]):
+        cum.append(cum[-1] + (a + b) / 2)
+    tot = cum[-1] or 1.0
+    cum = [c / tot for c in cum]
+
+    def f(p):
+        p = max(0.0, min(1.0, p))
+        lo, hi = 0, n
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if cum[mid] <= p:
+                lo = mid
+            else:
+                hi = mid
+        span = cum[hi] - cum[lo] or 1e-9
+        return (lo + (p - cum[lo]) / span) / n
+    return f
+
+
 def _mirror(segments):
     return [(1 - u, -v) for u, v in reversed(segments)]
 
@@ -208,8 +237,8 @@ class JunctionVisualizer(ttk.Frame):
         self.cv.grid(row=0, column=0, sticky="ew")
         self.sv = tk.Canvas(row, height=330, width=230, bg=BG, highlightthickness=0)
         self.sv.grid(row=0, column=1, sticky="ew", padx=(8, 0))
-        self.cv.bind("<Configure>", lambda e: self._rebuild())
-        self.sv.bind("<Configure>", lambda e: self._draw_symbol())
+        self.cv.bind("<Configure>", debounce(self.cv, lambda *a: self._rebuild(), 100))
+        self.sv.bind("<Configure>", debounce(self.sv, lambda *a: self._draw_symbol(), 100))
 
         legend = ttk.Label(self, text=t("jv.legend"), font=("Segoe UI", 8), foreground="#666",
                            style="CardBody.TLabel", wraplength=780, justify="left")
@@ -223,8 +252,18 @@ class JunctionVisualizer(ttk.Frame):
         self.mv.grid(row=0, column=0, sticky="nw")
         self.mv.bind("<Button-1>", self._on_map_click)
         self.mv.bind("<B1-Motion>", self._on_map_click)
+        self.cvc = None
         stats = ttk.Frame(mid, style="Card.TFrame")
-        stats.grid(row=0, column=1, sticky="nsew", padx=(12, 0))
+        if family == "bjt":
+            stats.grid(row=0, column=1, sticky="nsew", padx=(12, 0))
+        else:
+            # FETs: draggable VGS/VDS region map + the ID(VDS) output curve beside it
+            self.cvc = tk.Canvas(mid, width=330, height=230, bg=BG, highlightthickness=0)
+            self.cvc.grid(row=0, column=1, sticky="nw", padx=(10, 0))
+            self.cvc.bind("<Button-1>", self._on_curve_click)
+            self.cvc.bind("<B1-Motion>", self._on_curve_click)
+            stats.grid(row=1, column=0, columnspan=2, sticky="nsew", pady=(6, 0))
+            self._fet_map_cache = None
         stats.columnconfigure(0, weight=1)
         self.region_var = tk.StringVar()
         self.region_lbl = ttk.Label(stats, textvariable=self.region_var, font=("Segoe UI", 12, "bold"),
@@ -763,6 +802,8 @@ class JunctionVisualizer(ttk.Frame):
         E, Hh = self._carriers("e"), self._carriers("h")
         ich = st["ich"]
         if abs(ich) > 0:
+            chmap = _continuity_map(lambda fr: max(2.0, thick(fr)) / tmax)
+
             def pos(p, u, fwd=ich > 0):
                 # source contact -> down into well -> along the channel -> drain well -> contact
                 pts_x = [xS, xS, sw_r, dw_l, xD, xD]
@@ -773,7 +814,8 @@ class JunctionVisualizer(ttk.Frame):
                 f = seg - i
                 cy_ch = lambda fr: ys + max(2.0, thick(fr)) * (0.5 + 0.35 * u)  # noqa: E731
                 ys_pts = [ys - 7, cy_ch(0), cy_ch(0), cy_ch(1), cy_ch(1), ys - 7]
-                if i == 2:  # along the channel: follow its local thickness
+                if i == 2:  # along the channel: follow its local thickness, faster where it is thin
+                    f = chmap(f)
                     x = sw_r + (dw_l - sw_r) * f
                     return x, cy_ch(f)
                 return (pts_x[i] + (pts_x[i + 1] - pts_x[i]) * f, ys_pts[i] + (ys_pts[i + 1] - ys_pts[i]) * f)
@@ -876,10 +918,22 @@ class JunctionVisualizer(ttk.Frame):
         c.create_line(xG, yb + 47, xG, yb + 62, g0 - 20, yb + 62, g0 - 20, 60, xG - 14, 60, fill="#777",
                       width=1.5, dash=(4, 2), tags="static")
 
+        fan = 0.09 * (x1 - x0)     # carriers spread out gradually after leaving the neck
+
+        def _smooth(a):
+            a = max(0.0, min(1.0, a))
+            return a * a * (3 - 2 * a)
+
         def opening(x):
-            if x <= g0 or x >= g1:
-                return half
-            return max(2.5, half - depth((x - g0) / (g1 - g0)))
+            if g0 <= x <= g1:
+                return max(2.5, half - depth((x - g0) / (g1 - g0)))
+            if x > g1:
+                edge = max(2.5, half - depth(1.0))
+                return edge + (half - edge) * _smooth((x - g1) / fan)
+            edge = max(2.5, half - depth(0.0))
+            return edge + (half - edge) * _smooth((g0 - x) / fan)
+
+        xmap = _continuity_map(lambda fr: opening(x0 + (x1 - x0) * fr) / half)
 
         flows = {}
         E, Hh = self._carriers("e"), self._carriers("h")
@@ -888,7 +942,7 @@ class JunctionVisualizer(ttk.Frame):
             def pos(p, u, fwd=ich > 0):
                 if not fwd:
                     p = 1 - p
-                x = x0 + (x1 - x0) * p
+                x = x0 + (x1 - x0) * xmap(p)
                 return x, ym + u * opening(x) * 0.8
             flows["ch"] = _Flow("ch", E, ich, pos_fn=pos, length=x1 - x0, speed=110)
         for key, cur, xs in (("gs", st["ig_s"], g0 + 25), ("gd", st["ig_d"], g1 - 25)):
@@ -944,6 +998,11 @@ class JunctionVisualizer(ttk.Frame):
                 return
         except tk.TclError:
             return
+        if not is_shown(self.cv):
+            # page not visible: do no work, just check again a bit later
+            self._after = self.after(300, self._tick)
+            return
+        t_start = time.perf_counter()
         dt = TICK_MS / 1000
         c = self.cv
         # spawn
@@ -986,7 +1045,9 @@ class JunctionVisualizer(ttk.Frame):
         if c.find_withtag("spark"):
             for it in c.find_withtag("spark"):
                 c.itemconfigure(it, state="normal" if self._rng.random() > 0.35 else "hidden")
-        self._after = self.after(TICK_MS, self._tick)
+        # never ask for frames faster than this machine can draw them
+        spent = int((time.perf_counter() - t_start) * 1000)
+        self._after = self.after(max(TICK_MS, 2 * spent), self._tick)
 
     def stop(self):
         if getattr(self, "_pending", None) is not None:
@@ -1127,7 +1188,92 @@ class JunctionVisualizer(ttk.Frame):
             c.create_oval(px - 6, py - 6, px + 6, py + 6, fill=self.accent, outline="white", width=2)
             c.create_text(R, T - 6, text=t("jv.map_hint"), anchor="e", font=("Segoe UI", 7), fill="#777")
             return
-        # FET output characteristic ID(VDS) for the current VGS (+ neighbours)
+        self._draw_fet_map()
+        self._draw_curve()
+
+    # ---- FET region map (VGS on x, VDS on y, both in slider travel units) ----
+    FET_COLORS = {
+        "cutoff": "#e5e7eb", "subthreshold": "#eef2d0", "triode": "#f6dcc0", "ohmic": "#f6dcc0",
+        "saturation": "#cfe8df", "reverse_channel": "#e0d4ee", "reversed": "#e0d4ee",
+        "body_diode": "#d8c3ef", "gate_forward": "#fde6a8", "avalanche": "#f7c6c0", "breakdown": "#f7c6c0",
+    }
+
+    def _fet_region_grid(self, nx=46, ny=32):
+        key = (tuple(sorted(self._params().items())), nx, ny)
+        if self._fet_map_cache and self._fet_map_cache[0] == key:
+            return self._fet_map_cache[1]
+        grid = []
+        for j in range(ny):
+            row = []
+            vds = self.s2._u2v((j + 0.5) / ny)
+            for i in range(nx):
+                vgs = self.s1._u2v((i + 0.5) / nx)
+                try:
+                    row.append(self._compute(vgs, vds)["region"])
+                except Exception:
+                    row.append("cutoff")
+            grid.append(row)
+        self._fet_map_cache = (key, grid)
+        return grid
+
+    def _draw_fet_map(self):
+        c = self.mv
+        L, T, R, B = self.MAP
+        nx, ny = 46, 32
+        grid = self._fet_region_grid(nx, ny)
+        cw, ch = (R - L) / nx, (B - T) / ny
+        cells = {}
+        for j, row in enumerate(grid):
+            y1 = B - j * ch
+            for i, reg in enumerate(row):
+                x0 = L + i * cw
+                c.create_rectangle(x0, y1 - ch, x0 + cw + 0.6, y1 + 0.6,
+                                   fill=self.FET_COLORS.get(reg, "#eeeeee"), outline="")
+                cells.setdefault(reg, []).append((x0 + cw / 2, y1 - ch / 2))
+        # oxide-stress band (|VGS| beyond the rating) hatched on top
+        if self.family == "mosfet":
+            vmax = tm.MOSFET_DEFAULTS["vgs_max"]
+            for i in range(nx):
+                if abs(self.s1._u2v((i + 0.5) / nx)) > vmax:
+                    x0 = L + i * cw
+                    c.create_rectangle(x0, T, x0 + cw + 0.6, B, fill="#dc2626", stipple="gray25", outline="")
+        placed = []
+        for reg, pts in sorted(cells.items(), key=lambda kv: -len(kv[1])):
+            if len(pts) < 36:
+                continue
+            mx = sum(p[0] for p in pts) / len(pts)
+            my = sum(p[1] for p in pts) / len(pts)
+            txt = t(f"jv.region.{self.family}.{reg}")
+            # try the cells nearest the centroid first, skip spots that collide with other labels
+            for qx, qy in sorted(pts, key=lambda p: (p[0] - mx) ** 2 + (p[1] - my) ** 2)[::3]:
+                item = c.create_text(qx, qy, text=txt, font=("Segoe UI", 7, "bold"), fill="#333", width=80)
+                x0, y0, x1, y1 = c.bbox(item)
+                ok = x0 >= L and x1 <= R and y0 >= T and y1 <= B and all(
+                    x1 < a0 or x0 > a1 or y1 < b0 or y0 > b1 for a0, b0, a1, b1 in placed)
+                if ok:
+                    placed.append((x0 - 2, y0 - 1, x1 + 2, y1 + 1))
+                    break
+                c.delete(item)
+        c.create_rectangle(L, T, R, B, outline="#555")
+        u0x, u0y = self.s1._v2u(0), self.s2._v2u(0)
+        c.create_line(L + (R - L) * u0x, T, L + (R - L) * u0x, B, fill="#888", dash=(2, 2))
+        c.create_line(L, B - (B - T) * u0y, R, B - (B - T) * u0y, fill="#888", dash=(2, 2))
+        for u, v in self.s1.segments:
+            c.create_text(L + (R - L) * u, B + 9, text=f"{v:g}", font=("Segoe UI", 7), fill="#555")
+        for u, v in self.s2.segments:
+            c.create_text(L - 4, B - (B - T) * u, text=f"{v:g}", anchor="e", font=("Segoe UI", 7), fill="#555")
+        c.create_text((L + R) / 2, B + 22, text="VGS (V)  →", font=("Segoe UI", 8, "bold"), fill="#333")
+        c.create_text(10, (T + B) / 2, text="VDS (V)", angle=90, font=("Segoe UI", 8, "bold"), fill="#333")
+        px = L + (R - L) * self.s1._v2u(self._a)
+        py = B - (B - T) * self.s2._v2u(self._b)
+        c.create_oval(px - 6, py - 6, px + 6, py + 6, fill=self.accent, outline="white", width=2)
+        c.create_text(R, T - 6, text=t("jv.map_hint"), anchor="e", font=("Segoe UI", 7), fill="#777")
+
+    def _draw_curve(self):
+        """FET output characteristic ID(VDS) for the current VGS (+ neighbours)."""
+        c = self.cvc
+        c.delete("all")
+        L, T, R, B = self.MAP
         lo, hi = self.s2.segments[0][1], self.s2.segments[-1][1]
         vgs = self._a
         n = 90
@@ -1160,15 +1306,22 @@ class JunctionVisualizer(ttk.Frame):
         c.create_text(L - 4, Y(0), text="0", anchor="e", font=("Segoe UI", 7), fill="#555")
         c.create_text((L + R) / 2, B + 22, text="VDS (V)  →", font=("Segoe UI", 8, "bold"), fill="#333")
         c.create_text(10, (T + B) / 2, text="ID", angle=90, font=("Segoe UI", 8, "bold"), fill="#333")
-        c.create_text(R - 4, T + 8, text=t("jv.curve_hint").format(v=f"{vgs:+.2f}"), anchor="e",
+        c.create_text(R, T - 6, text=t("jv.curve_hint").format(v=f"{vgs:+.2f}"), anchor="e",
                       font=("Segoe UI", 7), fill="#555")
+
+    def _on_curve_click(self, e):
+        L, T, R, B = self.MAP
+        lo, hi = self.s2.segments[0][1], self.s2.segments[-1][1]
+        v = lo + (hi - lo) * (e.x - L) / (R - L)
+        self.s2.set(v)
 
     def _on_map_click(self, e):
         if self.family != "bjt":
             L, T, R, B = self.MAP
-            lo, hi = self.s2.segments[0][1], self.s2.segments[-1][1]
-            v = lo + (hi - lo) * (e.x - L) / (R - L)
-            self.s2.set(v)
+            ux = max(0.0, min(1.0, (e.x - L) / (R - L)))
+            uy = max(0.0, min(1.0, (B - e.y) / (B - T)))
+            self.s1.set(round(self.s1._u2v(ux), 2), fire=False)
+            self.s2.set(round(self.s2._u2v(uy), 2))
             return
         vbe = self._bjt_axis_inv(e.x, True)
         vbc = self._bjt_axis_inv(e.y, False)

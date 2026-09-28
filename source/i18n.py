@@ -1335,10 +1335,12 @@ STRINGS = {
     "digital.solver.parsed_words": {"en": "Parsed (words):", "ro": "Interpretat (cuvinte):"},
     "digital.solver.variables": {"en": "Variables:", "ro": "Variabile:"},
     "digital.solver.syntax_hint": {
-        "en": "Operators: · * AND   ·   + OR   ·   ¬ ! NOT ' (postfix)   ·   ^ ⊕ XOR   ·   NAND · NOR · XNOR   ·   ( ) grouping. "
-              "Use single-letter variables, or separate multi-letter names with a space/operator.",
-        "ro": "Operatori: · * AND   ·   + OR   ·   ¬ ! NOT ' (postfix)   ·   ^ ⊕ XOR   ·   NAND · NOR · XNOR   ·   ( ) grupare. "
-              "Folosește variabile de o literă, sau separă numele mai lungi cu spațiu/operator."},
+        "en": "Type with the keyboard or click the keypad. AND: · * & && . or just write letters together (AB = A·B)   "
+              "OR: + | ||   NOT: ' after a variable (A'), ! ~ ¬ or NOT   XOR: ^ ⊕   also NAND, NOR, XNOR and ( ). "
+              "Words work too: (A and B) or not C. Names with digits or lower-case letters (x1, Sel) stay one variable.",
+        "ro": "Scrie de la tastatură sau apasă tastele de pe ecran. AND: · * & && . sau scrie literele lipite (AB = A·B)   "
+              "OR: + | ||   NOT: ' după variabilă (A'), ! ~ ¬ sau NOT   XOR: ^ ⊕   plus NAND, NOR, XNOR și ( ). "
+              "Merg și cuvintele: (A and B) or not C. Numele cu cifre sau litere mici (x1, Sel) rămân o singură variabilă."},
     "digital.solver.empty": {"en": "Enter an expression above to see its truth table.",
                               "ro": "Introdu o expresie mai sus pentru a vedea tabelul de adevăr."},
     "digital.solver.too_many_vars": {
@@ -2505,7 +2507,7 @@ STRINGS = {
     # ===================================================================
     # RF Band Allocations (RF & Microwave subtab)
     # ===================================================================
-    "rf.bands.tab_title": {"en": "RF Band Allocations", "ro": "Alocări Benzi RF"},
+    "rf.bands.tab_title": {"en": "RF Band Explorer", "ro": "Explorator benzi RF"},
     "rf.bands.title": {"en": "RF Band Allocations by Region", "ro": "Alocări de Benzi RF pe Regiuni"},
     "rf.bands.intro": {
         "en": "A quick-lookup reference for how common RF bands are allocated across four major "
@@ -2614,3 +2616,5 @@ from i18n_extra import EXTRA as _EXTRA
 STRINGS.update(_EXTRA)
 from i18n_transistor import EXTRA_TR as _EXTRA_TR
 STRINGS.update(_EXTRA_TR)
+from i18n_v52 import EXTRA_52 as _EXTRA_52
+STRINGS.update(_EXTRA_52)

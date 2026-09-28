@@ -16,6 +16,7 @@ plotted trace never silently looks like it belongs to the wrong network.
 """
 import numpy as np
 import tkinter as tk
+from widgets import debounce_figure, smart_draw
 from tkinter import ttk
 
 import matplotlib
@@ -83,6 +84,7 @@ class SmithChartView(ttk.Frame):
 
         self.fig = Figure(figsize=(6, 6), dpi=100, facecolor="#10141f")
         self.canvas = FigureCanvasTkAgg(self.fig, master=body)
+        debounce_figure(self.canvas)
         self.canvas.get_tk_widget().grid(row=0, column=0, sticky="nsew")
         self.canvas.mpl_connect("button_press_event", self._on_plot_click)
 
@@ -223,7 +225,7 @@ class SmithChartView(ttk.Frame):
 
         if result is None:
             ax.text(0, 0, t("rf.vna.no_data"), color="#c7cbd8", ha="center", va="center")
-            self.canvas.draw()
+            smart_draw(self.canvas)
             for mw in self.marker_widgets:
                 mw["val_lbl"].configure(text="")
             return
@@ -250,7 +252,7 @@ class SmithChartView(ttk.Frame):
                 f_hz / 1e9, abs(gamma), np.angle(gamma, deg=True), z.real, z.imag))
 
         self.fig.tight_layout()
-        self.canvas.draw()
+        smart_draw(self.canvas)
 
 
 def _parse_z0(text):

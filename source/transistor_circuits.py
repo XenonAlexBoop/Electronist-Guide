@@ -24,7 +24,7 @@ from tkinter import ttk
 
 import symbols as sym
 from charts import MplChartFrame, PLOT_BG
-from widgets import parse_value, format_value, ScrollableFrame, FONT_BODY, FONT_H2, FONT_MONO
+from widgets import parse_value, format_value, ScrollableFrame, FONT_BODY, FONT_H2, FONT_MONO, debounce
 from i18n import t, get_language
 
 VT = 0.025852
@@ -467,7 +467,7 @@ class TransistorCircuitsPanel(ttk.Frame):
         self.form.grid(row=0, column=0, sticky="nw", padx=(0, 12))
         self.canvas = tk.Canvas(mid, width=420, height=380, bg=sym.CANVAS_BG, highlightthickness=0)
         self.canvas.grid(row=0, column=1, sticky="new")
-        self.canvas.bind("<Configure>", lambda e: self._compute())
+        self.canvas.bind("<Configure>", debounce(self.canvas, lambda *a: self._compute(), 150))
 
         self.result_var = tk.StringVar()
         ttk.Label(body, textvariable=self.result_var, font=("Consolas", 10, "bold"), foreground=accent,

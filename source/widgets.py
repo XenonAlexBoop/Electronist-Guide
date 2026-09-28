@@ -41,7 +41,7 @@ class ScrollableFrame(ttk.Frame):
         # panel down to a sliver. Pinning an explicit (tiny) starting size
         # makes the geometry manager (grid, with sticky+weight below) the
         # sole authority over this canvas's size instead.
-        self._canvas = tk.Canvas(self, highlightthickness=0, bd=0, bg=bg)
+        self._canvas = tk.Canvas(self, highlightthickness=0, bd=0, bg=bg, yscrollincrement=24)
         self._vsb = ttk.Scrollbar(self, orient="vertical", command=self._canvas.yview)
         self._canvas.configure(yscrollcommand=self._vsb.set)
         self._canvas.grid(row=0, column=0, sticky="nsew")
@@ -84,25 +84,14 @@ class ScrollableFrame(ttk.Frame):
             self._vsb_visible = False
 
     def _bind_mousewheel(self, _event):
-        self._canvas.bind_all("<MouseWheel>", self._on_mousewheel)
-        self._canvas.bind_all("<Button-4>", self._on_mousewheel)
-        self._canvas.bind_all("<Button-5>", self._on_mousewheel)
+        _install_wheel(self._canvas)
 
     def _unbind_mousewheel(self, _event):
-        self._canvas.unbind_all("<MouseWheel>")
-        self._canvas.unbind_all("<Button-4>")
-        self._canvas.unbind_all("<Button-5>")
+        pass
 
-    def _on_mousewheel(self, event):
-        if not self._vsb_visible:
-            return
-        if event.num == 4:
-            delta = -1
-        elif event.num == 5:
-            delta = 1
-        else:
-            delta = -1 if event.delta > 0 else 1
-        self._canvas.yview_scroll(delta, "units")
+    def can_scroll(self):
+        return self._vsb_visible
+
 
 ACCENT = {
     "resistor": "#c9622a",
@@ -287,3 +276,173 @@ def labeled_row(parent, label_text, widget_factory, row, col=0, **grid_kwargs):
     w = widget_factory(parent)
     w.grid(row=row, column=col + 1, sticky="ew", pady=4, **grid_kwargs)
     return w
+
+
+# ---------------------------------------------------------------------------
+# Mouse wheel: one global handler that scrolls the innermost scrollable
+# page under the pointer (nested pages no longer fight over the wheel).
+# ---------------------------------------------------------------------------
+
+def _install_wheel(any_widget):
+    root = any_widget.winfo_toplevel()
+    if getattr(root, "_wheel_installed", False):
+        return
+    root._wheel_installed = True
+    for seq in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
+        root.bind_all(seq, _on_wheel, add="+")
+
+
+def _on_wheel(event):
+    try:
+        w = event.widget.winfo_containing(event.x_root, event.y_root)
+    except (tk.TclError, AttributeError, KeyError):
+        return
+    if event.num == 4:
+        steps = -3
+    elif event.num == 5:
+        steps = 3
+    else:
+        steps = -int(event.delta / 120 * 3) if abs(event.delta) >= 120 else (-1 if event.delta > 0 else 1)
+    while w is not None:
+        if isinstance(w, ScrollableFrame) and w.can_scroll():
+            first, last = w._canvas.yview()
+            if (steps < 0 and first > 0) or (steps > 0 and last < 1):
+                w._canvas.yview_scroll(steps, "units")
+                return
+        if isinstance(w, (tk.Listbox, tk.Text)) or w.winfo_class() == "Treeview":
+            return   # let widgets with their own scrolling handle it
+        w = w.master
+
+
+# ---------------------------------------------------------------------------
+# Performance helpers
+# ---------------------------------------------------------------------------
+def is_shown(widget):
+    """True when the widget is actually on screen (its tab is selected)."""
+    try:
+        return bool(widget.winfo_viewable())
+    except tk.TclError:
+        return False
+
+
+def debounce(widget, func, ms=120):
+    """Return a callback that runs func once, `ms` after the last call
+    (used for <Configure> handlers so resizing/scrolling doesn't trigger a
+    full redraw for every intermediate size)."""
+    state = {"job": None, "args": None}
+
+    def fire():
+        state["job"] = None
+        try:
+            if widget.winfo_exists():
+                func(*state["args"])
+        except tk.TclError:
+            pass
+
+    def call(*args):
+        state["args"] = args
+        if state["job"] is not None:
+            try:
+                widget.after_cancel(state["job"])
+            except tk.TclError:
+                pass
+        try:
+            state["job"] = widget.after(ms, fire)
+        except tk.TclError:
+            pass
+    return call
+
+
+def lazy_tab(nb, text, factory, **pack_kw):
+    """Add a notebook page whose content is built only the first time the
+    page is shown. `factory(parent)` must return the content widget."""
+    holder = ttk.Frame(nb, style="Tab.TFrame")
+    holder._lazy_factory = factory
+    holder._lazy_built = False
+    nb.add(holder, text=text)
+    if not getattr(nb, "_lazy_bound", False):
+        nb.bind("<<NotebookTabChanged>>", lambda e, n=nb: _build_selected(n), add="+")
+        nb._lazy_bound = True
+    return holder
+
+
+def _build_selected(nb):
+    try:
+        cur = nb.select()
+    except tk.TclError:
+        return
+    if not cur:
+        return
+    holder = nb.nametowidget(cur)
+    build_lazy(holder)
+
+
+def build_lazy(holder):
+    if getattr(holder, "_lazy_factory", None) is None or holder._lazy_built:
+        return
+    holder._lazy_built = True
+    top = holder.winfo_toplevel()
+    try:
+        top.configure(cursor="watch")
+        top.update_idletasks()
+    except tk.TclError:
+        pass
+    content = holder._lazy_factory(holder)
+    if content is not None:
+        content.pack(fill="both", expand=True)
+    try:
+        top.configure(cursor="")
+    except tk.TclError:
+        pass
+
+
+def debounce_figure(figcanvas, ms=150):
+    """Matplotlib's Tk canvas redraws the whole figure on every <Configure>
+    (each intermediate size while scrolling/resizing). Redraw once the size
+    has settled instead, and only when the chart is actually visible. The
+    first render waits until the page layout has settled (one draw instead
+    of three when a page opens)."""
+    w = figcanvas.get_tk_widget()
+    figcanvas._dirty = True
+    figcanvas._settled = False
+
+    def settled(event):
+        figcanvas._settled = True
+        figcanvas._dirty = False
+        figcanvas.resize(event)          # resizes the figure and draws (idle)
+
+    w.bind("<Configure>", debounce(w, settled, ms))
+
+    # any draw requested before the layout has settled (matplotlib itself
+    # asks for one on <Map>) is postponed to that single settled draw
+    real_draw_idle = figcanvas.draw_idle
+
+    def gated_draw_idle(*a, **k):
+        if not getattr(figcanvas, "_settled", True):
+            figcanvas._dirty = True
+            return
+        return real_draw_idle(*a, **k)
+    figcanvas.draw_idle = gated_draw_idle
+
+    def on_map(_e=None):
+        # safety net: a chart updated while hidden is drawn when it appears
+        def later():
+            if getattr(figcanvas, "_dirty", False) and is_shown(w):
+                figcanvas._dirty = False
+                figcanvas._settled = True
+                figcanvas.draw_idle()
+        try:
+            w.after(ms * 3, later)
+        except tk.TclError:
+            pass
+    w.bind("<Map>", on_map, add="+")
+
+
+def smart_draw(figcanvas):
+    """Draw a matplotlib chart without blocking: coalesced into one render
+    when idle, and postponed while the chart is hidden or still being laid out."""
+    w = figcanvas.get_tk_widget()
+    if is_shown(w) and getattr(figcanvas, "_settled", True):
+        figcanvas.draw_idle()
+    else:
+        figcanvas._dirty = True

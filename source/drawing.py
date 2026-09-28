@@ -29,25 +29,27 @@ def draw_resistor(canvas, band_colors, w=460, h=160):
     draw_wire(canvas, bx1, cy, w - 20, cy)
 
     # body (rounded rectangle via oval-capped rect)
+    # rounded body: both end-caps first, then the straight part on top so the
+    # inner halves of the end-cap outlines are hidden (no stray arc over a band)
     canvas.create_oval(bx0 - 18, by0, bx0 + 18, by1, fill=BODY_COLOR, outline="#8a7752", width=2)
-    canvas.create_rectangle(bx0, by0, bx1, by1, fill=BODY_COLOR, outline="")
     canvas.create_oval(bx1 - 18, by0, bx1 + 18, by1, fill=BODY_COLOR, outline="#8a7752", width=2)
+    canvas.create_rectangle(bx0, by0 + 1, bx1, by1 - 1, fill=BODY_COLOR, outline="")
     canvas.create_line(bx0, by0, bx1, by0, fill="#8a7752", width=2)
     canvas.create_line(bx0, by1, bx1, by1, fill="#8a7752", width=2)
 
     n = len(band_colors)
     band_w = 16
     if n <= 4:
-        usable_w = body_w - 50
-        gap = usable_w / (n - 1) if n > 1 else 0
-        start_x = bx0 + 25
-        positions = [start_x + i * gap for i in range(n)]
+        # three value bands grouped on the left, tolerance band set apart on the right
+        start_x = bx0 + 28
+        gap = 34
+        positions = [start_x + i * gap for i in range(n - 1)] + [bx1 - 34]
     else:
         # 5-6 bands: evenly space all bands with consistent gaps (no cramped overlap)
-        usable_w = body_w - 40
-        gap = usable_w / (n - 1)
-        start_x = bx0 + 20
-        positions = [start_x + i * gap for i in range(n)]
+        usable_w = body_w - 70
+        gap = usable_w / (n - 2)
+        start_x = bx0 + 24
+        positions = [start_x + i * gap for i in range(n - 2)] + [bx1 - 58, bx1 - 30]
 
     for pos, color in zip(positions, band_colors):
         hexcol = COLOR_CODE[color]["hex"]
@@ -688,12 +690,14 @@ def draw_opamp(canvas, w=460, h=220, mode="inverting", rin_text="Rin", rf_text="
         sym.wire(canvas, in_node_x + 10, non_y, in_node_x + 10, h - 30)
         sym.ground(canvas, in_node_x + 10, h - 30)
     else:
-        sym.wire(canvas, 40, non_y, left - 18, non_y)
-        sym.terminal(canvas, 40, non_y, label="Vin", anchor="n", dy=8)
-        sym.wire(canvas, in_node_x, inv_y, in_node_x - 40, inv_y)
-        sym.resistor(canvas, in_node_x - 40, inv_y, in_node_x - 40, h - 25, label=rin_text,
-                     label_side=-1)
-        sym.ground(canvas, in_node_x - 40, h - 25)
+        # Rin from the (-) node to ground, drawn horizontally to the left so it
+        # never crosses the (+) input; Vin enters the (+) input from below.
+        sym.resistor(canvas, 60, inv_y, in_node_x, inv_y, label=rin_text)
+        sym.wire(canvas, 60, inv_y, 60, inv_y + 8)
+        sym.ground(canvas, 60, inv_y + 8)
+        vx = left - 45
+        sym.wire(canvas, 40, h - 30, vx, h - 30, vx, non_y, left - 18, non_y)
+        sym.terminal(canvas, 40, h - 30, label="Vin", anchor="s", dy=-8)
 
 
 _COMBO_STYLE = {

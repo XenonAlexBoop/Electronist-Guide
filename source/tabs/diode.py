@@ -1,4 +1,6 @@
+import numpy as np
 import tkinter as tk
+from widgets import is_shown
 from tkinter import ttk
 from data import get_theory
 from drawing import draw_diode, draw_bridge_4diode
@@ -6,6 +8,7 @@ from widgets import TheoryPanel, ScrollableFrame, parse_value, FONT_H1, FONT_H2,
 from charts import (MplChartFrame, diode_dc_curve, diode_rectifier,
                      four_diode_bridge_signals, V_COLOR, I_COLOR, PLOT_BG, include_zero)
 from i18n import t
+from widgets import lazy_tab
 from symbols import SymbolGallery
 
 ACCENT_C = ACCENT["diode"]
@@ -45,15 +48,17 @@ class DiodeTab(ttk.Frame):
         nb = ttk.Notebook(left)
         nb.grid(row=0, column=0, sticky="nsew")
         calc_tab = ttk.Frame(nb, style="Card.TFrame")
-        chart_tab = ttk.Frame(nb, style="Card.TFrame")
-        bridge4_tab = ttk.Frame(nb, style="Card.TFrame")
         nb.add(calc_tab, text=t("diode.subtab.calc"))
-        nb.add(chart_tab, text=t("diode.subtab.chart"))
-        nb.add(bridge4_tab, text=t("diode.subtab.bridge4"))
-
         self._build_calculator(calc_tab)
-        self._build_chart(chart_tab)
-        self._build_bridge4(bridge4_tab)
+
+        def framed(builder):
+            def make(parent):
+                f = ttk.Frame(parent, style="Card.TFrame")
+                builder(f)
+                return f
+            return make
+        lazy_tab(nb, t("diode.subtab.chart"), framed(self._build_chart))
+        lazy_tab(nb, t("diode.subtab.bridge4"), framed(self._build_bridge4))
 
         right_scroll = ScrollableFrame(right, style="Card.TFrame")
         right_scroll.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
@@ -237,98 +242,222 @@ class DiodeTab(ttk.Frame):
 
     # ------------------------------------------------------------------
     def _build_bridge4(self, parent):
-        parent.columnconfigure(1, weight=1)
+        """4-diode bridge: animated schematic (which diode pair conducts in each
+        half-cycle), live results, and the smoothing-capacitor option. The load
+        value only matters once a capacitor is fitted (without it the output
+        waveform is just |Vin| - 2Vf whatever the load), so RL and C are only
+        shown after the capacitor is switched on."""
+        parent.columnconfigure(0, weight=1)
         parent.rowconfigure(0, weight=1)
+        sf = ScrollableFrame(parent, style="Card.TFrame")
+        sf.grid(row=0, column=0, sticky="nsew")
+        body = sf.body
+        body.columnconfigure(1, weight=1)
 
-        controls = ttk.Frame(parent, style="Card.TFrame")
-        controls.grid(row=0, column=0, sticky="ns", padx=(16, 8), pady=16)
+        ttk.Label(body, text=t("diode.bridge4.title"), font=FONT_H2, foreground=ACCENT_C,
+                  style="CardSub.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", padx=16, pady=(12, 2))
+        intro = ttk.Label(body, text=t("diode.bridge4.intro"), font=FONT_BODY, style="CardBody.TLabel",
+                          justify="left", wraplength=800)
+        intro.grid(row=1, column=0, columnspan=2, sticky="w", padx=16, pady=(0, 8))
+        body.bind("<Configure>", lambda e: intro.configure(wraplength=max(300, e.width - 40)), add="+")
 
-        ttk.Label(controls, text=t("diode.bridge4.title"), font=FONT_H2, foreground=ACCENT_C,
-                  style="CardSub.TLabel", wraplength=280, justify="left")\
-            .grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 6))
-        ttk.Label(controls, text=t("diode.bridge4.intro"), font=("Segoe UI", 9), wraplength=280,
-                  justify="left", style="CardBody.TLabel").grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
-
-        self.b4_canvas = tk.Canvas(controls, width=280, height=210, bg="#fdfaf3", highlightthickness=0)
-        self.b4_canvas.grid(row=2, column=0, columnspan=2, pady=(0, 10))
+        left = ttk.Frame(body, style="Card.TFrame")
+        left.grid(row=2, column=0, sticky="nw", padx=(16, 8))
+        self.b4_canvas = tk.Canvas(left, width=400, height=250, bg="#fdfaf3", highlightthickness=0)
+        self.b4_canvas.grid(row=0, column=0, columnspan=3, pady=(0, 8))
+        self.b4_phase_var = tk.StringVar()
+        ttk.Label(left, textvariable=self.b4_phase_var, font=("Segoe UI", 9, "bold"), foreground="#d97706",
+                  style="CardBody.TLabel").grid(row=1, column=0, columnspan=3, sticky="w")
 
         fields = [("amplitude", t("diode.bridge.amplitude"), "12"),
-                  ("frequency", t("diode.bridge.frequency"), "60"),
-                  ("vf", t("diode.bridge.vf"), "0.7"),
-                  ("r_load", t("diode.bridge.rload"), "1000")]
+                  ("frequency", t("diode.bridge.frequency"), "50"),
+                  ("vf", t("diode.bridge.vf"), "0.7")]
         self.b4_vars = {}
         for i, (key, label, default) in enumerate(fields):
-            ttk.Label(controls, text=label, font=FONT_BODY, style="CardBody.TLabel")\
-                .grid(row=3 + i, column=0, sticky="w", pady=3)
+            ttk.Label(left, text=label, font=FONT_BODY, style="CardBody.TLabel")\
+                .grid(row=2 + i, column=0, sticky="w", pady=2)
             var = tk.StringVar(value=default)
-            entry = ttk.Entry(controls, textvariable=var, width=10)
-            entry.grid(row=3 + i, column=1, pady=3, padx=(6, 0))
+            entry = ttk.Entry(left, textvariable=var, width=10)
+            entry.grid(row=2 + i, column=1, sticky="w", pady=2, padx=(6, 0))
             entry.bind("<KeyRelease>", lambda e: self._simulate_bridge4())
             self.b4_vars[key] = var
 
-        self.b4_cap_on = False
-        self.b4_cap_var = tk.StringVar(value="100u")
-        self.b4_cap_btn = ttk.Button(controls, text=t("diode.bridge.add_cap"), command=self._toggle_bridge4_cap)
-        self.b4_cap_btn.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(6, 4))
+        self.b4_cap_on = tk.BooleanVar(value=False)
+        ttk.Checkbutton(left, text=t("diode.bridge.add_cap_chk"), variable=self.b4_cap_on,
+                        command=self._toggle_bridge4_cap).grid(row=5, column=0, columnspan=3, sticky="w", pady=(8, 2))
+        self.b4_cap_row = ttk.Frame(left, style="Card.TFrame")
+        self.b4_cap_var = tk.StringVar(value="1000u")
+        self.b4_rl_var = tk.StringVar(value="100")
+        for r, (lbl, var) in enumerate(((t("diode.bridge.cap_value"), self.b4_cap_var),
+                                        (t("diode.bridge.rload"), self.b4_rl_var))):
+            ttk.Label(self.b4_cap_row, text=lbl, font=FONT_BODY, style="CardBody.TLabel")\
+                .grid(row=r, column=0, sticky="w", pady=2)
+            e = ttk.Entry(self.b4_cap_row, textvariable=var, width=10)
+            e.grid(row=r, column=1, sticky="w", padx=(6, 0), pady=2)
+            e.bind("<KeyRelease>", lambda ev: self._simulate_bridge4())
+        ttk.Label(self.b4_cap_row, text=t("diode.bridge.rl_hint"), font=("Segoe UI", 8), foreground="#777",
+                  style="CardBody.TLabel", wraplength=360, justify="left").grid(row=2, column=0, columnspan=2, sticky="w")
 
-        self.b4_cap_row = ttk.Frame(controls, style="Card.TFrame")
-        ttk.Label(self.b4_cap_row, text=t("diode.bridge.cap_value"), font=FONT_BODY, style="CardBody.TLabel")\
-            .grid(row=0, column=0, sticky="w")
-        cap_entry = ttk.Entry(self.b4_cap_row, textvariable=self.b4_cap_var, width=10)
-        cap_entry.grid(row=0, column=1, padx=(6, 0))
-        cap_entry.bind("<KeyRelease>", lambda e: self._simulate_bridge4())
-        # not gridded yet — shown only when cap is toggled on
-
+        self.b4_result = tk.StringVar()
+        ttk.Label(left, textvariable=self.b4_result, font=("Consolas", 10, "bold"), foreground=ACCENT_C,
+                  style="CardFormula.TLabel", justify="left").grid(row=7, column=0, columnspan=3, sticky="w", pady=(8, 2))
         self.b4_note = tk.StringVar()
-        ttk.Label(controls, textvariable=self.b4_note, font=("Segoe UI", 9), foreground=ACCENT_C,
-                  style="CardBody.TLabel", wraplength=280, justify="left")\
-            .grid(row=9, column=0, columnspan=2, sticky="w", pady=(10, 0))
+        ttk.Label(left, textvariable=self.b4_note, font=("Segoe UI", 9), style="CardBody.TLabel",
+                  wraplength=390, justify="left").grid(row=8, column=0, columnspan=3, sticky="w", pady=(4, 12))
 
-        chart_wrap = ttk.Frame(parent, style="Card.TFrame")
-        chart_wrap.grid(row=0, column=1, sticky="nsew", padx=(8, 16), pady=16)
-        self.b4_chart = MplChartFrame(chart_wrap)
+        chart_wrap = ttk.Frame(body, style="Card.TFrame")
+        chart_wrap.grid(row=2, column=1, sticky="nsew", padx=(8, 16))
+        self.b4_chart = MplChartFrame(chart_wrap, figsize=(6.0, 4.6))
         self.b4_chart.pack(fill="both", expand=True)
 
+        self._b4_phase = 0
+        self._b4_after = None
         self._simulate_bridge4()
+        self._b4_animate()
+
+    def _b4_animate(self):
+        try:
+            if not self.b4_canvas.winfo_exists():
+                return
+        except tk.TclError:
+            return
+        if not is_shown(self.b4_canvas):
+            self._b4_after = self.b4_canvas.after(500, self._b4_animate)
+            return
+        self._b4_phase ^= 1
+        self._draw_bridge4()
+        self._b4_after = self.b4_canvas.after(1300, self._b4_animate)
 
     def _toggle_bridge4_cap(self):
-        self.b4_cap_on = not self.b4_cap_on
-        if self.b4_cap_on:
-            self.b4_cap_row.grid(row=8, column=0, columnspan=2, sticky="w", pady=(0, 4))
-            self.b4_cap_btn.configure(text=t("diode.bridge.remove_cap"))
+        if self.b4_cap_on.get():
+            self.b4_cap_row.grid(row=6, column=0, columnspan=3, sticky="w", pady=(0, 4))
         else:
             self.b4_cap_row.grid_remove()
-            self.b4_cap_btn.configure(text=t("diode.bridge.add_cap"))
         self._simulate_bridge4()
+
+    def _draw_bridge4(self):
+        import symbols as sym
+        c = self.b4_canvas
+        c.delete("all")
+        pos = self._b4_phase == 0
+        cap = self.b4_cap_on.get()
+        on_col, off_col = "#d97706", "#9aa3b2"
+        cx, cy, r = 190, 125, 70
+        L, T, R, B = (cx - r, cy), (cx, cy - r), (cx + r, cy), (cx, cy + r)
+        # diodes: (anode, cathode, name, conducts on positive half?)
+        diodes = [(L, T, "D1", True), (R, T, "D2", False), (B, L, "D3", False), (B, R, "D4", True)]
+        for (a, k, name, on_pos) in diodes:
+            active = on_pos == pos
+            col = on_col if active else off_col
+            sym.diode(c, a[0], a[1], k[0], k[1], s=0.8, color=col, fill=col if active else "")
+            mx, my = (a[0] + k[0]) / 2, (a[1] + k[1]) / 2
+            dx = -16 if mx < cx else 16
+            dy = -12 if my < cy else 12
+            c.create_text(mx + dx, my + dy, text=name, font=("Segoe UI", 9, "bold"), fill=col)
+        for p in (L, T, R, B):
+            sym.node(c, p[0], p[1])
+        # AC source on the left: top to L, bottom around to R
+        sx = 40
+        wire = lambda *pts, col=sym.SYM_COLOR: sym.wire(c, *pts, color=col, width=2 if col == sym.SYM_COLOR else 3)  # noqa
+        a_col = on_col
+        wire(sx, cy - 16, sx, cy - r - 25, L[0] - 30, cy - r - 25, L[0] - 30, cy, L[0], cy,
+             col=a_col if pos else sym.SYM_COLOR)
+        wire(sx, cy + 16, sx, cy + r + 25, R[0], cy + r + 25, R[0], cy, col=a_col if not pos else sym.SYM_COLOR)
+        sym.ac_source(c, sx, cy)
+        c.create_text(sx - 20, cy, text="~Vin", anchor="e", font=("Segoe UI", 8, "bold"), fill=sym.LABEL_COLOR)
+        # load side: T -> right rail, B -> right rail
+        xr = cx + r + 90
+        wire(T[0], T[1], T[0], cy - r - 10, xr, cy - r - 10, col=a_col)
+        wire(B[0], B[1], B[0], cy + r + 10, xr, cy + r + 10, col=a_col)
+        if cap:
+            xc = xr - 40
+            sym.node(c, xc, cy - r - 10)
+            sym.node(c, xc, cy + r + 10)
+            sym.wire(c, xc, cy - r - 10, xc, cy - 14)
+            sym.capacitor(c, xc, cy - 14, xc, cy + 14, variant="polarized", s=0.9, label="C", label_side=-1)
+            sym.wire(c, xc, cy + 14, xc, cy + r + 10)
+            load_lbl = "RL"
+        else:
+            load_lbl = t("diode.bridge.load_generic")
+        sym.resistor(c, xr, cy - r - 10, xr, cy + r + 10, label=load_lbl, s=0.9, label_side=1)
+        c.create_text(xr + 14, cy - r - 10, text="+", font=("Segoe UI", 12, "bold"), fill="#c62828")
+        c.create_text(xr + 14, cy + r + 10, text="−", font=("Segoe UI", 12, "bold"), fill=sym.SYM_COLOR)
+        # current through the load is always downward (+ to -)
+        sym.current_arrow(c, xr + 26, cy - 20, xr + 26, cy + 20, color=on_col)
+        self.b4_phase_var.set(t("diode.bridge.phase_pos") if pos else t("diode.bridge.phase_neg"))
 
     def _simulate_bridge4(self):
         try:
-            kwargs = {key: parse_value(var.get()) for key, var in self.b4_vars.items()}
-            cap_val = parse_value(self.b4_cap_var.get()) if self.b4_cap_on else None
+            kw = {key: parse_value(var.get()) for key, var in self.b4_vars.items()}
+            cap = parse_value(self.b4_cap_var.get()) if self.b4_cap_on.get() else None
+            rl = parse_value(self.b4_rl_var.get()) if self.b4_cap_on.get() else 1000.0
+            if kw["amplitude"] <= 0 or kw["frequency"] <= 0 or rl <= 0 or (cap is not None and cap <= 0):
+                raise ValueError
         except Exception:
             self.b4_note.set(t("common.enter_valid_values"))
             return
+        self._draw_bridge4()
+        f = kw["frequency"]
+        vp, vf = kw["amplitude"], kw["vf"]
+        tt = np.linspace(0, 4 / f, 8000)
+        vin = vp * np.sin(2 * np.pi * f * tt)
+        raw = np.clip(np.abs(vin) - 2 * vf, 0, None)
+        vpk = max(vp - 2 * vf, 0.0)
+        lines = [f"Vin peak       = {vp:.3g} V   ({vp / np.sqrt(2):.3g} V rms)",
+                 f"Vout peak      = Vp − 2·Vf = {vpk:.3g} V",
+                 f"PIV per diode  ≈ {max(vp - vf, 0):.3g} V",
+                 f"Output pulses  = 2·f = {2 * f:g} Hz"]
+        if cap is None:
+            vout = raw
+            lines.insert(2, f"Vdc (average)  = 2·Vpk/π ≈ {2 * vpk / np.pi:.3g} V")
+            lines.append(f"Ripple (p-p)   = {vpk:.3g} V  (100 %)")
+        else:
+            vout = np.zeros_like(raw)
+            dt = tt[1] - tt[0]
+            for k in range(1, len(tt)):
+                decay = vout[k - 1] * np.exp(-dt / (rl * cap))
+                vout[k] = raw[k] if raw[k] >= decay else decay
+            last = tt >= 2 / f
+            vmax, vmin = float(vout[last].max()), float(vout[last].min())
+            vdc = float(vout[last].mean())
+            iload = vdc / rl
+            charging = (raw >= vout - 1e-9) & (raw > 0)
+            dvdt = np.gradient(vout, dt)
+            i_diode = np.where(charging, cap * dvdt + vout / rl, 0.0)
+            ipk = float(i_diode[last].max())
+            cond = float(charging[last].mean()) * 100
+            lines.insert(2, f"Vdc (average)  ≈ {vdc:.3g} V    I load ≈ {iload * 1e3:.3g} mA")
+            lines.append(f"Ripple (p-p)   = {vmax - vmin:.3g} V  ({(vmax - vmin) / vdc * 100 if vdc else 0:.1f} %)"
+                         f"   formula ≈ I/(2fC) = {iload / (2 * f * cap):.3g} V")
+            lines.append(f"Diode peak I   ≈ {ipk:.3g} A   (conducts {cond:.0f} % of the time)")
+        self.b4_result.set("\n".join(lines))
+        self.b4_note.set(t("diode.bridge4.note_smoothed") if cap else t("diode.bridge4.note"))
 
-        draw_bridge_4diode(self.b4_canvas, w=280, h=210, show_cap=self.b4_cap_on,
-                            cap_label=self.b4_cap_var.get() if self.b4_cap_on else "")
-
-        t_arr, vin, vout, i, vout_raw = four_diode_bridge_signals(cap=cap_val, **kwargs)
-
-        self.b4_chart.clear()
-        ax = self.b4_chart.fig.add_subplot(111)
+        fig = self.b4_chart.fig
+        fig.clear()
+        ax = fig.add_subplot(111)
         ax.set_facecolor(PLOT_BG)
-        ax.plot(t_arr, vin, color=V_COLOR, linewidth=1.5, label=t("diode.bridge.legend_vin"))
-        if self.b4_cap_on:
-            ax.plot(t_arr, vout_raw, color="#999999", linewidth=1.3, linestyle=":",
-                    label=t("diode.bridge.legend_vout_before"))
-        vout_label = t("diode.bridge.legend_vout_smoothed") if self.b4_cap_on else t("diode.bridge.legend_vout")
-        ax.plot(t_arr, vout, color="#2A9D8F", linewidth=2, label=vout_label)
-        ax.set_xlabel(t("common.time_s"))
-        ax.set_ylabel(t("common.voltage"))
-        ax.legend(loc="upper right", fontsize=8)
-        ax.set_title(t("diode.bridge.chart_title"), fontsize=11)
+        tm = tt * 1e3
+        ax.plot(tm, vin, color=V_COLOR, lw=1.2, alpha=0.8, label=t("diode.bridge.legend_vin"))
+        if cap is not None:
+            ax.plot(tm, raw, color="#999999", lw=1.1, ls=":", label=t("diode.bridge.legend_vout_before"))
+            ax.fill_between(tm, vout, vmin, where=tt >= 2 / f, color="#2A9D8F", alpha=0.12)
+        ax.plot(tm, vout, color="#2A9D8F", lw=2.2,
+                label=t("diode.bridge.legend_vout_smoothed") if cap else t("diode.bridge.legend_vout"))
+        ax.axhline(0, color="#333", lw=1)
+        # shade which diode pair conducts
+        half = 1 / (2 * f)
+        for k in range(8):
+            if k % 2 == 1:
+                ax.axvspan(k * half * 1e3, (k + 1) * half * 1e3, color="#d97706", alpha=0.05, lw=0)
+        for k, lab in ((0, "D1+D4"), (1, "D2+D3")):
+            ax.text((k + 0.5) * half * 1e3, vp * 1.1, lab, fontsize=7, color="#b45309", ha="center", va="bottom")
+        ax.set_ylim(-vp * 1.15, vp * 1.25)
+        ax.set_xlabel("t (ms)")
+        ax.set_ylabel("V")
+        ax.set_ylim(-vp * 1.18, vp * 1.18)
         ax.grid(True, alpha=0.25)
-        include_zero(ax)
-        self.b4_chart.fig.tight_layout()
+        ax.legend(loc="lower right", fontsize=8)
+        ax.set_title(t("diode.bridge.chart_title"), fontsize=11)
+        fig.tight_layout()
         self.b4_chart.redraw()
-        self.b4_note.set(t("diode.bridge4.note_smoothed") if self.b4_cap_on else t("diode.bridge4.note"))

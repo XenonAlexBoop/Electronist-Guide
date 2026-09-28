@@ -16,7 +16,7 @@ Shows:
 import tkinter as tk
 from tkinter import ttk
 
-from widgets import combine_pair, format_value, parse_value, ScrollableFrame, FONT_H2, FONT_BODY, FONT_MONO
+from widgets import combine_pair, format_value, parse_value, ScrollableFrame, FONT_H2, FONT_BODY, FONT_MONO, debounce
 import symbols as sym
 from i18n import t
 
@@ -113,7 +113,7 @@ class MixedBuilderPanel(ttk.Frame):
         self._hsb.grid(row=1, column=0, sticky="ew")
         self.canvas.configure(xscrollcommand=self._hsb.set)
         self._last_w = 0
-        self.canvas.bind("<Configure>", self._on_canvas_resize)
+        self.canvas.bind("<Configure>", debounce(self.canvas, self._on_canvas_resize, 100))
 
         self.result_var = tk.StringVar(value=t("combos.empty_state"))
         ttk.Label(root, textvariable=self.result_var, font=FONT_MONO, foreground=accent,
