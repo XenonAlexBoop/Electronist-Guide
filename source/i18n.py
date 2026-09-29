@@ -2618,3 +2618,18 @@ from i18n_transistor import EXTRA_TR as _EXTRA_TR
 STRINGS.update(_EXTRA_TR)
 from i18n_v52 import EXTRA_52 as _EXTRA_52
 STRINGS.update(_EXTRA_52)
+
+
+def register(table):
+    """Add strings from a feature module: {key: (english, romanian)}.
+    Lets new modules keep their texts next to the code that uses them."""
+    for k, v in table.items():
+        if isinstance(v, dict):
+            STRINGS[k] = v
+        else:
+            STRINGS[k] = {"en": v[0], "ro": v[1]}
+
+
+def tr(en, ro):
+    """Inline two-language text for short labels (v6 modules)."""
+    return ro if _CURRENT_LANG == "ro" else en

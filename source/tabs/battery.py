@@ -5,6 +5,11 @@ from drawing import draw_battery
 from widgets import TheoryPanel, ScrollableFrame, FONT_H1, FONT_H2, FONT_BODY, FONT_MONO, ACCENT
 from i18n import t
 from symbols import SymbolGallery
+from widgets import lazy_tab
+from .learn import learn_page
+from i18n import register
+
+register({"battery.subtab.calc": ("Pack calculator", "Calculator baterie")})
 
 ACCENT_C = ACCENT["battery"]
 
@@ -19,19 +24,12 @@ class BatteryTab(ttk.Frame):
         ttk.Label(self, text=t("battery.tab_title"), font=FONT_H1,
                   style="TabTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 6))
 
-        left = ttk.Frame(self, style="Card.TFrame")
-        left.grid(row=1, column=0, sticky="nsew", padx=(20, 10), pady=10)
-        right = ttk.Frame(self, style="Tab.TFrame")
-        right.grid(row=1, column=1, sticky="nsew", padx=(10, 20), pady=10)
-        right.columnconfigure(0, weight=1)
-        right.rowconfigure(0, weight=1)
-
-        self._build_calculator(left)
-        right_scroll = ScrollableFrame(right, style="Card.TFrame")
-        right_scroll.grid(row=0, column=0, sticky="nsew")
-        SymbolGallery(right_scroll.body, "battery", accent=ACCENT_C).pack(fill="x", pady=(0, 8))
-        theory = TheoryPanel(right_scroll.body, get_theory("battery"), accent=ACCENT_C)
-        theory.pack(fill="both", expand=True)
+        nb = ttk.Notebook(self)
+        nb.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=20, pady=10)
+        calc = ttk.Frame(nb, style="Card.TFrame")
+        nb.add(calc, text=t("battery.subtab.calc"))
+        self._build_calculator(calc)
+        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "battery", "battery"))
 
     def _build_calculator(self, parent):
         pad = {"padx": 16, "pady": 6}

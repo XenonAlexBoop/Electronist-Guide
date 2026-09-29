@@ -24,7 +24,7 @@ from tkinter import ttk
 
 import symbols as sym
 from charts import MplChartFrame, PLOT_BG
-from widgets import parse_value, format_value, ScrollableFrame, FONT_BODY, FONT_H2, FONT_MONO, debounce
+from widgets import parse_value, format_value, ScrollableFrame, FONT_BODY, FONT_H2, FONT_MONO, debounce, cap_width
 from i18n import t, get_language
 
 VT = 0.025852
@@ -669,7 +669,7 @@ class TransistorCircuitsPanel(ttk.Frame):
     def _draw(self, c, p, r):
         cv = self.canvas
         cv.delete("all")
-        W = max(420, cv.winfo_width() if cv.winfo_width() > 50 else 520)
+        W = cap_width(cv, max(420, cv.winfo_width() if cv.winfo_width() > 50 else 520), 780)
         self.H = H = 380
         top, bot = self._rails(W)
         kind = c["draw"]

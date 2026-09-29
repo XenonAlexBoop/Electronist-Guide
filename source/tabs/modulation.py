@@ -354,9 +354,9 @@ class ModulationTab(ttk.Frame):
         nb = ttk.Notebook(self)
         nb.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 10))
 
-        calc_page = ModulationPanel(nb)
-        theory_scroll = ScrollableFrame(nb, style="Card.TFrame")
-        TheoryPanel(theory_scroll.body, get_theory("modulation"), accent=ACCENT_C)\
-            .pack(fill="both", expand=True)
+        from tabs.modulation_lab import ModulationLabPanel
+        calc_page = ModulationLabPanel(nb)
         nb.add(calc_page, text=t("mod.subtab.calculator"))
-        nb.add(theory_scroll, text=t("common.learn"))
+        from tabs.learn import learn_page
+        from widgets import lazy_tab
+        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "modulation", extra=lambda b: __import__("tabs.learn_extras", fromlist=["x"]).modulation_gallery(b, ACCENT_C).pack(fill="x")))

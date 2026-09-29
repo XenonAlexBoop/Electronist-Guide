@@ -446,3 +446,26 @@ def smart_draw(figcanvas):
         figcanvas.draw_idle()
     else:
         figcanvas._dirty = True
+
+
+def cap_width(canvas, width, max_width):
+    """Keep a schematic at a sensible aspect ratio on very wide windows.
+
+    Returns the width to draw with (<= max_width) and shifts the canvas view so
+    that a drawing made in 0..returned-width appears centred.  Drawing code
+    keeps using plain canvas coordinates (animations and hit-tests still
+    work: they use canvasx()/canvasy() or no mouse at all)."""
+    try:
+        real = canvas.winfo_width()
+        h = max(canvas.winfo_height(), int(float(canvas.cget("height") or 0)))
+    except Exception:
+        return width
+    w = min(width, max_width)
+    if real > 50 and real > w:
+        dx = (real - w) / 2.0
+        canvas.configure(scrollregion=(-dx, 0, real - dx, h), confine=True)
+    else:
+        canvas.configure(scrollregion=(0, 0, max(real, w), h), confine=True)
+    canvas.xview_moveto(0)
+    canvas.yview_moveto(0)
+    return w

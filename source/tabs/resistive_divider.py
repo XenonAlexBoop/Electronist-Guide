@@ -14,7 +14,7 @@ import math
 import tkinter as tk
 from tkinter import ttk
 
-from widgets import parse_value, format_value, ScrollableFrame, FONT_H2, FONT_BODY, FONT_MONO, debounce
+from widgets import parse_value, format_value, ScrollableFrame, FONT_H2, FONT_BODY, FONT_MONO, debounce, cap_width
 import symbols as sym
 from solver import Formula, Var, solve_for
 from i18n import t
@@ -287,7 +287,7 @@ class ResistiveDividerPanel(ttk.Frame):
     def _draw(self, vals, res):
         c = self.canvas
         c.delete("all")
-        w = max(self._cw or 520, 420)
+        w = cap_width(c, max(self._cw or 520, 420), 980)
         stage2, loaded = self.stage2.get(), self.loaded.get()
         top, bot = 70, 225
         src_x = 48

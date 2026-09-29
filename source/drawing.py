@@ -16,7 +16,7 @@ def draw_wire(canvas, x1, y1, x2, y2, width=3, color=WIRE_COLOR):
     canvas.create_line(x1, y1, x2, y2, width=width, fill=color, capstyle="round")
 
 
-def draw_resistor(canvas, band_colors, w=460, h=160):
+def draw_resistor(canvas, band_colors, w=460, h=160, body=BODY_COLOR, edge="#8a7752"):
     """band_colors: ordered list of color names (4, 5 or 6 bands)."""
     clear(canvas)
     cx, cy = w / 2, h / 2
@@ -31,25 +31,27 @@ def draw_resistor(canvas, band_colors, w=460, h=160):
     # body (rounded rectangle via oval-capped rect)
     # rounded body: both end-caps first, then the straight part on top so the
     # inner halves of the end-cap outlines are hidden (no stray arc over a band)
-    canvas.create_oval(bx0 - 18, by0, bx0 + 18, by1, fill=BODY_COLOR, outline="#8a7752", width=2)
-    canvas.create_oval(bx1 - 18, by0, bx1 + 18, by1, fill=BODY_COLOR, outline="#8a7752", width=2)
-    canvas.create_rectangle(bx0, by0 + 1, bx1, by1 - 1, fill=BODY_COLOR, outline="")
-    canvas.create_line(bx0, by0, bx1, by0, fill="#8a7752", width=2)
-    canvas.create_line(bx0, by1, bx1, by1, fill="#8a7752", width=2)
+    canvas.create_oval(bx0 - 18, by0, bx0 + 18, by1, fill=body, outline=edge, width=2)
+    canvas.create_oval(bx1 - 18, by0, bx1 + 18, by1, fill=body, outline=edge, width=2)
+    canvas.create_rectangle(bx0, by0 + 1, bx1, by1 - 1, fill=body, outline="")
+    canvas.create_line(bx0, by0, bx1, by0, fill=edge, width=2)
+    canvas.create_line(bx0, by1, bx1, by1, fill=edge, width=2)
 
     n = len(band_colors)
+    # Real resistors: the value bands (digits + multiplier) sit at one even
+    # pitch, then a clearly wider gap, then tolerance (and temp.co) at the
+    # same pitch. The whole group is centred on the body so 4, 5 and 6-band
+    # parts all look alike - same band width, same spacing, same gap.
     band_w = 16
-    if n <= 4:
-        # three value bands grouped on the left, tolerance band set apart on the right
-        start_x = bx0 + 28
-        gap = 34
-        positions = [start_x + i * gap for i in range(n - 1)] + [bx1 - 34]
-    else:
-        # 5-6 bands: evenly space all bands with consistent gaps (no cramped overlap)
-        usable_w = body_w - 70
-        gap = usable_w / (n - 2)
-        start_x = bx0 + 24
-        positions = [start_x + i * gap for i in range(n - 2)] + [bx1 - 58, bx1 - 30]
+    pitch = 32
+    gap = 2 * pitch
+    n_value = 3 if n <= 4 else 4
+    n_tail = max(0, n - n_value)
+    span = (n_value - 1) * pitch + (gap if n_tail else 0) + max(0, n_tail - 1) * pitch
+    start_x = cx - span / 2
+    positions = [start_x + i * pitch for i in range(n_value)]
+    for j in range(n_tail):
+        positions.append(positions[n_value - 1] + gap + j * pitch)
 
     for pos, color in zip(positions, band_colors):
         hexcol = COLOR_CODE[color]["hex"]

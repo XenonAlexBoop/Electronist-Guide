@@ -29,35 +29,36 @@ class BasicsTab(ttk.Frame):
         kirchhoff_page = KirchhoffTab(nb)
         nb.add(ohms_page, text=t("basics.subtab.ohms_law"))
         nb.add(kirchhoff_page, text=t("basics.subtab.kirchhoff"))
+        from widgets import lazy_tab
+        from .learn import learn_page
+        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, ["basics", "kirchhoff"]))
 
 
 class OhmsLawPanel(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent, style="Tab.TFrame")
-        self.columnconfigure(0, weight=1, minsize=380)
-        self.columnconfigure(1, weight=1, minsize=360)
+        self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
         left_wrap = ttk.Frame(self, style="Card.TFrame")
-        left_wrap.grid(row=0, column=0, sticky="nsew", padx=(0, 10), pady=10)
+        left_wrap.grid(row=0, column=0, sticky="nsew", pady=10)
         left_wrap.columnconfigure(0, weight=1)
         left_wrap.rowconfigure(0, weight=1)
-        right = ttk.Frame(self, style="Tab.TFrame")
-        right.grid(row=0, column=1, sticky="nsew", padx=(10, 0), pady=10)
-        right.columnconfigure(0, weight=1)
-        right.rowconfigure(0, weight=1)
 
         left_scroll = ScrollableFrame(left_wrap, style="Card.TFrame")
         left_scroll.grid(row=0, column=0, sticky="nsew")
         left = left_scroll.body
 
-        self._build_calculator(left)
-        self._build_live_simulator(left)
-        from widgets import TheoryPanel
-        right_scroll = ScrollableFrame(right, style="Card.TFrame")
-        right_scroll.grid(row=0, column=0, sticky="nsew")
-        theory = TheoryPanel(right_scroll.body, get_theory("basics"), accent=ACCENT_C)
-        theory.pack(fill="both", expand=True)
+        # v6.2: calculator and live simulator side by side (theory -> Learn tab)
+        left.columnconfigure(0, weight=1, uniform="o")
+        left.columnconfigure(1, weight=1, uniform="o")
+        calc = ttk.Frame(left, style="Card.TFrame")
+        calc.grid(row=0, column=0, sticky="nsew")
+        live = ttk.Frame(left, style="Card.TFrame")
+        live.grid(row=0, column=1, sticky="nsew")
+        live.columnconfigure(0, weight=1)
+        self._build_calculator(calc)
+        self._build_live_simulator(live)
 
     def _build_calculator(self, parent):
         pad = {"padx": 16, "pady": 6}

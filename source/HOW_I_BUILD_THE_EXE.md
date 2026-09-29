@@ -232,41 +232,28 @@ rather than trusting the working directory I'd been editing in.
 
 ---
 
-## Addendum (v5.0 build, Sept 2026) — the "patch the existing exe" route
+## Shortcut used for v6.0: patch the existing exe (no Wine Python needed)
 
-In the v5.0 session **GitHub release assets, python.org and nuget.org were
-all blocked** by the sandbox egress policy, so Steps 2–6 (get a Windows
-Python, pip-install, run PyInstaller under Wine) were impossible. What
-worked instead — and is much faster when only the app's own `.py` files
-changed (no new third-party packages):
+When the dependencies (numpy, matplotlib, PIL, Tk) have NOT changed, only the
+app's own Python code, the existing one-dir build can be reused:
+`tools/patch_exe.py` (run with a Linux CPython **3.12**, same bytecode magic
+as the bundled `python312.dll`) recompiles every project `.py` and swaps it
+into the PYZ archive inside `ElectronistGuide.exe`:
 
-1. Stage the user's *existing* `ElectronistGuide\ElectronistGuide.exe`
-   (a PyInstaller 6.x one-dir build for CPython 3.12).
-2. With a **Linux CPython 3.12** (same bytecode magic as the bundled
-   `python312.dll`; `apt install python3.12` + `python3.12-tk`, and
-   `pip install pyinstaller` in a venv just for its archive readers),
-   run `tools/patch_exe.py SRC_DIR OLD_EXE NEW_EXE`:
-   - splits the exe into Windows bootloader + CArchive (find the
-     `MEI\014\013\012\013\016` cookie at the end),
-   - opens the embedded `PYZ.pyz`, removes the app's old modules,
-     compiles every project `.py` with `compile()` and adds them
-     (zlib level 6, TOC = marshalled list of
-     `(name, (typecode 0=module/1=package, offset, length))`),
-   - recompiles the `main` script entry, keeps every other CArchive
-     entry byte-for-byte, re-serialises the TOC (16-byte aligned) and
-     writes a new cookie.
-3. The `_internal` folder is reused unchanged, so only the new exe is
-   delivered. Keep the old exe as a backup next to it.
-4. Verify: (a) load every app module from the new exe's PYZ into Linux
-   Python 3.12 and walk every tab; (b) run the real exe under Wine
-   (binaries are in `/usr/lib/wine/`, i.e. `wine64`; the prefix must be in
-   a directory owned by the current user, e.g. `/root/wineprefix`). For
-   Wine you need a copy of `_internal` — staging only ~150 of its ~1200
-   files is enough if you skip `_tcl_data/tzdata`, `_tcl_data/msgs` and
-   most of `mpl-data`, but you DO need `numpy/core/_multiarray_tests*.pyd`
-   and `mpl-data/fonts/ttf/LastResortHE-Regular.ttf` (matplotlib 3.11
-   hard-requires it).
+```bash
+python3.12 tools/patch_exe.py <source_dir_without_tools> <old ElectronistGuide.exe> ElectronistGuide.exe
+```
 
-Limit: if a change needs a new third-party package or a new compiled
-extension, this route can't add it — fall back to the full Wine +
-PyInstaller build above.
+Only the new `ElectronistGuide.exe` (~8.5 MB) has to be replaced; `_internal/`
+stays as it is. New modules may only import things already in the bundle
+(stdlib from `base_library.zip`, numpy, matplotlib, PIL, tkinter).
+
+Verification is still done under Wine (Steps 1, 4, 7): copy `_internal/` next
+to the patched exe and launch it. For an automated check, patch a second copy
+whose `main.py` imports the real app as `app_main`, walks every tab and drives
+every option, and writes a log next to the exe.
+
+**New Wine-only gotcha (v6.0):** `numpy.exp()` on a *complex* array calls the
+C runtime's `cexp()`, which Wine's `ucrtbase` does not implement — the frozen
+app hard-crashes (fine on real Windows). Build complex exponentials from
+`np.cos(x) + 1j*np.sin(x)` instead (see `_cis()` in `tabs/modulation_lab.py`).

@@ -10,6 +10,7 @@ from charts import (MplChartFrame, diode_dc_curve, diode_rectifier,
 from i18n import t
 from widgets import lazy_tab
 from symbols import SymbolGallery
+from .diode_lab import DiodeLabPanel, IVExplorerPanel, ZenerDesignPanel, LedArrayPanel
 
 ACCENT_C = ACCENT["diode"]
 
@@ -36,14 +37,12 @@ class DiodeTab(ttk.Frame):
         ttk.Label(self, text=t("diode.tab_title"), font=FONT_H1, style="TabTitle.TLabel")\
             .grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 6))
 
+        # v6: the tools need the full width, so the notebook spans the page
+        # and the reference material moved into its own "Learn" sub-tab.
         left = ttk.Frame(self, style="Tab.TFrame")
-        left.grid(row=1, column=0, sticky="nsew", padx=(20, 10), pady=10)
+        left.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=20, pady=10)
         left.columnconfigure(0, weight=1)
         left.rowconfigure(0, weight=1)
-        right = ttk.Frame(self, style="Tab.TFrame")
-        right.grid(row=1, column=1, sticky="nsew", padx=(10, 20), pady=10)
-        right.columnconfigure(0, weight=1)
-        right.rowconfigure(1, weight=1)
 
         nb = ttk.Notebook(left)
         nb.grid(row=0, column=0, sticky="nsew")
@@ -57,17 +56,27 @@ class DiodeTab(ttk.Frame):
                 builder(f)
                 return f
             return make
+        lazy_tab(nb, t("dl.lab"), lambda p: DiodeLabPanel(p, ACCENT_C))
+        lazy_tab(nb, t("dl.iv"), lambda p: IVExplorerPanel(p, ACCENT_C))
+        lazy_tab(nb, t("dl.zener"), lambda p: ZenerDesignPanel(p, ACCENT_C))
+        lazy_tab(nb, t("dl.led"), lambda p: LedArrayPanel(p, ACCENT_C))
         lazy_tab(nb, t("diode.subtab.chart"), framed(self._build_chart))
         lazy_tab(nb, t("diode.subtab.bridge4"), framed(self._build_bridge4))
+        lazy_tab(nb, t("common.learn"), self._build_learn)
 
-        right_scroll = ScrollableFrame(right, style="Card.TFrame")
-        right_scroll.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
+    def _build_learn(self, parent):
+        f = ttk.Frame(parent, style="Card.TFrame")
+        f.columnconfigure(0, weight=3)
+        f.columnconfigure(1, weight=2)
+        f.rowconfigure(0, weight=1)
+        right_scroll = ScrollableFrame(f, style="Card.TFrame")
+        right_scroll.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
         SymbolGallery(right_scroll.body, "diode", accent=ACCENT_C).pack(fill="x", pady=(0, 8))
         theory = TheoryPanel(right_scroll.body, get_theory("diode"), accent=ACCENT_C)
         theory.pack(fill="both", expand=True)
-
-        table = self._build_table(right)
-        table.grid(row=1, column=0, sticky="nsew")
+        table = self._build_table(f)
+        table.grid(row=0, column=1, sticky="nsew")
+        return f
 
     def _build_calculator(self, parent):
         pad = {"padx": 16, "pady": 6}

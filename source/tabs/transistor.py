@@ -19,6 +19,7 @@ from transistor_viz import JunctionVisualizer
 from transistor_circuits import TransistorCircuitsPanel
 from transistor_graph import GraphicalAnalysisPanel
 from widgets import lazy_tab, build_lazy
+from .learn import learn_page
 
 ACCENT_C = ACCENT["transistor"]
 
@@ -108,13 +109,9 @@ class TransistorTab(ttk.Frame):
         polarity = self._current_polarity_key()
 
         left = ttk.Frame(self.content, style="Tab.TFrame")
-        left.grid(row=0, column=0, sticky="nsew", padx=(20, 10), pady=10)
+        left.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=20, pady=10)
         left.columnconfigure(0, weight=1)
         left.rowconfigure(0, weight=1)
-        right = ttk.Frame(self.content, style="Card.TFrame")
-        right.grid(row=0, column=1, sticky="nsew", padx=(10, 20), pady=10)
-        right.columnconfigure(0, weight=1)
-        right.rowconfigure(0, weight=1)
 
         nb = ttk.Notebook(left)
         nb.grid(row=0, column=0, sticky="nsew")
@@ -138,16 +135,11 @@ class TransistorTab(ttk.Frame):
             lazy_tab(nb, t("tc.tab"), lambda p: TransistorCircuitsPanel(p, family, polarity, ACCENT_C)),
             lazy_tab(nb, t("transistor.subtab.bias"), bias),
             lazy_tab(nb, t("transistor.subtab.chart"), lambda p: GraphicalAnalysisPanel(p, family, polarity, ACCENT_C)),
+            lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, THEORY_KEY[family], family)),
         ]
         idx = min(getattr(self, "_sub_index", 0), len(holders) - 1)
         nb.select(idx)
         build_lazy(holders[idx])
-
-        right_scroll = ScrollableFrame(right, style="Card.TFrame")
-        right_scroll.grid(row=0, column=0, sticky="nsew")
-        SymbolGallery(right_scroll.body, family, accent=ACCENT_C).pack(fill="x", pady=(0, 8))
-        theory = TheoryPanel(right_scroll.body, get_theory(THEORY_KEY[family]), accent=ACCENT_C)
-        theory.pack(fill="both", expand=True)
 
     # ------------------------------------------------------------------
     # Junction visualizer

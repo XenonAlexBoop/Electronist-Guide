@@ -25,7 +25,7 @@ from tabs.transistor import TransistorTab
 from tabs.opamp import OpAmpTab
 from tabs.battery import BatteryTab
 from tabs.basics import BasicsTab
-from tabs.divider import FilterTab
+from tabs.filter_lab import FilterTab
 from tabs.digital_logic import DigitalLogicTab
 from tabs.group import GroupTab
 from tabs.unit_converter import UnitConverterTab
@@ -188,6 +188,7 @@ class ElectronistGuideApp(tk.Tk):
         self._maximize()
         self.minsize(1000, 700)
         setup_style(self)
+        self._install_popdown_guard()
 
         self.header = tk.Frame(self, bg=HEADER_BG, height=64)
         self.header.pack(fill="x", side="top")
@@ -276,6 +277,66 @@ class ElectronistGuideApp(tk.Tk):
         build_lazy(holders[0])
         if path:
             self._restore_path(path)
+
+    # ------------------------------------------------------------------
+    # A ttk.Combobox drop-down is a separate always-on-top window on Windows:
+    # if the user Alt+Tabs away while it is open, it stayed floating over the
+    # other apps. Close any open drop-down as soon as the app loses focus.
+    def _install_popdown_guard(self):
+        self._open_combos = set()
+
+        def remember(e):
+            self._open_combos.add(str(e.widget))
+            if not getattr(self, "_popdown_poll", False):
+                self._popdown_poll = True
+                self.after(300, self._poll_popdowns)
+        self.bind_class("TCombobox", "<ButtonPress-1>", remember, add="+")
+        self.bind_class("TCombobox", "<KeyPress-Down>", remember, add="+")
+        self.bind_all("<FocusOut>", lambda _e: self.after(150, self._close_popdowns_if_inactive), add="+")
+        for seq in ("<Deactivate>", "<Unmap>"):
+            try:
+                self.bind(seq, lambda _e: self.after(50, self._close_popdowns_if_inactive), add="+")
+            except tk.TclError:
+                pass
+
+    def _poll_popdowns(self):
+        """While a drop-down is open, check a few times a second that the
+        app still has focus (belt and braces for the FocusOut binding)."""
+        any_open = False
+        for path in list(self._open_combos):
+            try:
+                pd = self.tk.call("ttk::combobox::PopdownWindow", path)
+                any_open |= bool(int(self.tk.call("winfo", "ismapped", pd)))
+            except tk.TclError:
+                self._open_combos.discard(path)
+        if any_open:
+            self._close_popdowns_if_inactive()
+            self.after(300, self._poll_popdowns)
+        else:
+            self._popdown_poll = False
+
+    def _app_has_focus(self):
+        try:
+            return bool(self.tk.call("focus"))
+        except tk.TclError:
+            return False
+
+    def _close_popdowns_if_inactive(self):
+        if self._app_has_focus() and self.state() != "iconic":
+            return
+        self.close_popdowns()
+
+    def close_popdowns(self):
+        for path in list(self._open_combos):
+            try:
+                if not int(self.tk.call("winfo", "exists", path)):
+                    self._open_combos.discard(path)
+                    continue
+                pd = self.tk.call("ttk::combobox::PopdownWindow", path)
+                if int(self.tk.call("winfo", "ismapped", pd)):
+                    self.tk.call("ttk::combobox::Unpost", path)
+            except tk.TclError:
+                self._open_combos.discard(path)
 
     # remember which page (and sub-pages) are open across a rebuild
     @staticmethod

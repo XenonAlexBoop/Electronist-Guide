@@ -7,7 +7,7 @@ from widgets import TheoryPanel, ScrollableFrame, FONT_H1, FONT_H2, FONT_BODY, F
 from logic.boolexpr import parse, ParseError
 from logic.truthtable import build_truth_table
 from logic.minimize import minimize
-from logic.circuit_canvas import LogicBuilderView
+from logic.builder import LogicBuilderView
 from i18n import t
 
 ACCENT_C = ACCENT["digital"]
@@ -46,11 +46,9 @@ class DigitalLogicTab(ttk.Frame):
         title.grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 6))
 
         left = ttk.Frame(self, style="Tab.TFrame")
-        left.grid(row=1, column=0, sticky="nsew", padx=(20, 10), pady=10)
+        left.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=20, pady=10)
         left.columnconfigure(0, weight=1)
         left.rowconfigure(0, weight=1)
-        right = ttk.Frame(self, style="Card.TFrame")
-        right.grid(row=1, column=1, sticky="nsew", padx=(10, 20), pady=10)
 
         nb = ttk.Notebook(left)
         nb.grid(row=0, column=0, sticky="nsew")
@@ -79,9 +77,9 @@ class DigitalLogicTab(ttk.Frame):
         builder_page.rowconfigure(0, weight=1)
         LogicBuilderView(builder_page).grid(row=0, column=0, sticky="nsew")
 
-        right_scroll = ScrollableFrame(right, style="Card.TFrame")
-        right_scroll.pack(fill="both", expand=True)
-        TheoryPanel(right_scroll.body, get_theory("digital"), accent=ACCENT_C).pack(fill="both", expand=True)
+        from widgets import lazy_tab
+        from .learn import learn_page
+        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "digital", extra=lambda b: __import__("tabs.learn_extras", fromlist=["x"]).digital_gallery(b, ACCENT_C).pack(fill="x")))
 
     # ------------------------------------------------------------------
     # Logic Gates explorer

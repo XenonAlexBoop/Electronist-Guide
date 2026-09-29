@@ -26,7 +26,7 @@ from tkinter import ttk
 
 import transistor_models as tm
 import symbols as sym
-from widgets import format_value, parse_value, FONT_BODY, FONT_H2, FONT_MONO, debounce
+from widgets import format_value, parse_value, FONT_BODY, FONT_H2, FONT_MONO, debounce, cap_width
 from i18n import t
 
 TICK_MS = 40
@@ -534,7 +534,7 @@ class JunctionVisualizer(ttk.Frame):
         if self._state is None:
             return
         c = self.cv
-        W = max(420, c.winfo_width() if c.winfo_width() > 50 else 560)
+        W = cap_width(c, max(420, c.winfo_width() if c.winfo_width() > 50 else 560), 900)
         H = 330
         c.delete("static")
         c.delete("spark")

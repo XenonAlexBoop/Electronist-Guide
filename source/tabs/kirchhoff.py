@@ -23,28 +23,27 @@ N_BRANCHES = 4
 class KirchhoffTab(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent, style="Tab.TFrame")
-        self.columnconfigure(0, weight=1, minsize=380)
-        self.columnconfigure(1, weight=1, minsize=360)
+        self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
         left_wrap = ttk.Frame(self, style="Card.TFrame")
-        left_wrap.grid(row=0, column=0, sticky="nsew", padx=(0, 6), pady=0)
+        left_wrap.grid(row=0, column=0, sticky="nsew", pady=0)
         left_wrap.columnconfigure(0, weight=1)
         left_wrap.rowconfigure(0, weight=1)
         left_scroll = ScrollableFrame(left_wrap, style="Card.TFrame")
         left_scroll.grid(row=0, column=0, sticky="nsew")
 
-        right = ttk.Frame(self, style="Tab.TFrame")
-        right.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
-        right.columnconfigure(0, weight=1)
-        right.rowconfigure(0, weight=1)
-        right_scroll = ScrollableFrame(right, style="Card.TFrame")
-        right_scroll.grid(row=0, column=0, sticky="nsew")
-        theory = TheoryPanel(right_scroll.body, get_theory("kirchhoff"), accent=ACCENT_C)
-        theory.pack(fill="both", expand=True)
-
-        self._build_kvl(left_scroll.body)
-        self._build_kcl(left_scroll.body)
+        # v6.2: with the theory in its own Learn tab, KVL and KCL sit side by side
+        body = left_scroll.body
+        body.columnconfigure(0, weight=1, uniform="k")
+        body.columnconfigure(1, weight=1, uniform="k")
+        kvl = ttk.Frame(body, style="Card.TFrame")
+        kvl.grid(row=0, column=0, sticky="nsew")
+        kcl = ttk.Frame(body, style="Card.TFrame")
+        kcl.grid(row=0, column=1, sticky="nsew")
+        kcl.columnconfigure(0, weight=1)
+        self._build_kvl(kvl)
+        self._build_kcl(kcl)
 
     # ------------------------------------------------------------------
     # KVL - series loop

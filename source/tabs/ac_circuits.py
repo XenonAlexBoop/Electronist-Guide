@@ -516,11 +516,13 @@ class ACCircuitsTab(ttk.Frame):
         nb.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=20, pady=(0, 10))
 
         def theory(parent):
-            sf = ScrollableFrame(parent, style="Card.TFrame")
-            TheoryPanel(sf.body, get_theory("ac_circuits"), accent=ACCENT_C).pack(fill="both", expand=True)
-            return sf
-        first = lazy_tab(nb, t("acw.tab"), ACWaveformPanel)
-        lazy_tab(nb, t("ac.subtab.passive"), PassiveACPanel)
-        lazy_tab(nb, t("ac.subtab.power"), PowerSystemsPanel)
+            from tabs.learn import learn_page
+            from tabs.learn_extras import ac_gallery
+            return learn_page(parent, ACCENT_C, "ac_circuits", extra=lambda b: ac_gallery(b, ACCENT_C).pack(fill="x"))
+        from tabs.phasor_lab import PhasorLabPanel, PFCorrectionPanel
+        first = lazy_tab(nb, t("pl.tab"), PhasorLabPanel)
+        lazy_tab(nb, t("acw.tab"), ACWaveformPanel)
+        lazy_tab(nb, t("pl.pf"), PFCorrectionPanel)
+        lazy_tab(nb, t("pl.3ph"), PowerSystemsPanel)
         lazy_tab(nb, t("common.learn"), theory)
         build_lazy(first)

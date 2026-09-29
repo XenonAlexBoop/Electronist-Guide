@@ -10,6 +10,8 @@ from combos import MixedBuilderPanel
 from solver import FormulaSolverPanel, capacitor_formulas
 from symbols import SymbolGallery
 from i18n import t
+from .smd_panel import SmdCodePanel
+from .learn import learn_page
 from widgets import lazy_tab
 
 ACCENT_C = ACCENT["capacitor"]
@@ -26,13 +28,9 @@ class CapacitorTab(ttk.Frame):
             .grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 6))
 
         left = ttk.Frame(self, style="Tab.TFrame")
-        left.grid(row=1, column=0, sticky="nsew", padx=(20, 10), pady=10)
+        left.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=20, pady=10)
         left.columnconfigure(0, weight=1)
         left.rowconfigure(0, weight=1)
-        right = ttk.Frame(self, style="Card.TFrame")
-        right.grid(row=1, column=1, sticky="nsew", padx=(10, 20), pady=10)
-        right.columnconfigure(0, weight=1)
-        right.rowconfigure(0, weight=1)
 
         nb = ttk.Notebook(left)
         nb.grid(row=0, column=0, sticky="nsew")
@@ -40,6 +38,7 @@ class CapacitorTab(ttk.Frame):
         ceramic = ttk.Frame(nb, style="Card.TFrame")
         nb.add(ceramic, text=t("capacitor.subtab.ceramic"))
         self._build_ceramic(ceramic)
+        lazy_tab(nb, t("smd.subtab"), lambda p: SmdCodePanel(p, "capacitor", ACCENT_C))
         lazy_tab(nb, t("solver.tab"), lambda p: FormulaSolverPanel(p, capacitor_formulas(), ACCENT_C))
 
         def make_combo(parent):
@@ -71,11 +70,7 @@ class CapacitorTab(ttk.Frame):
 
         lazy_tab(nb, t("capacitor.subtab.chart"), make_chart)
 
-        right_scroll = ScrollableFrame(right, style="Card.TFrame")
-        right_scroll.grid(row=0, column=0, sticky="nsew")
-        SymbolGallery(right_scroll.body, "capacitor", accent=ACCENT_C).pack(fill="x", pady=(0, 8))
-        theory = TheoryPanel(right_scroll.body, get_theory("capacitor"), accent=ACCENT_C)
-        theory.pack(fill="both", expand=True)
+        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "capacitor", "capacitor"))
 
     # ------------------------------------------------------------------
     def _build_ceramic(self, parent):

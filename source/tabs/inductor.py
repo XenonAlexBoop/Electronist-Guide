@@ -11,6 +11,8 @@ from tabs.coupling_viz import CouplingPanel
 from solver import FormulaSolverPanel, inductor_formulas
 from symbols import SymbolGallery
 from i18n import t
+from .smd_panel import SmdCodePanel
+from .learn import learn_page
 from widgets import lazy_tab
 
 ACCENT_C = ACCENT["inductor"]
@@ -27,13 +29,9 @@ class InductorTab(ttk.Frame):
                   style="TabTitle.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 6))
 
         left = ttk.Frame(self, style="Tab.TFrame")
-        left.grid(row=1, column=0, sticky="nsew", padx=(20, 10), pady=10)
+        left.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=20, pady=10)
         left.columnconfigure(0, weight=1)
         left.rowconfigure(0, weight=1)
-        right = ttk.Frame(self, style="Card.TFrame")
-        right.grid(row=1, column=1, sticky="nsew", padx=(10, 20), pady=10)
-        right.columnconfigure(0, weight=1)
-        right.rowconfigure(0, weight=1)
 
         nb = ttk.Notebook(left)
         nb.grid(row=0, column=0, sticky="nsew")
@@ -41,6 +39,7 @@ class InductorTab(ttk.Frame):
         color_tab = ttk.Frame(nb, style="Card.TFrame")
         nb.add(color_tab, text=t("inductor.subtab.color"))
         self._build_color(color_tab)
+        lazy_tab(nb, t("smd.subtab"), lambda p: SmdCodePanel(p, "inductor", ACCENT_C))
 
         def framed(builder):
             def make(parent):
@@ -76,11 +75,7 @@ class InductorTab(ttk.Frame):
 
         lazy_tab(nb, t("inductor.subtab.chart"), make_chart)
 
-        right_scroll = ScrollableFrame(right, style="Card.TFrame")
-        right_scroll.grid(row=0, column=0, sticky="nsew")
-        SymbolGallery(right_scroll.body, "inductor", accent=ACCENT_C).pack(fill="x", pady=(0, 8))
-        theory = TheoryPanel(right_scroll.body, get_theory("inductor"), accent=ACCENT_C)
-        theory.pack(fill="both", expand=True)
+        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "inductor", "inductor"))
 
     # ---- color code -----------------------------------------------------
     def _build_color(self, parent):

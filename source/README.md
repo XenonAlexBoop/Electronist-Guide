@@ -1,4 +1,4 @@
-# ⚡ The Electronist's Guide (v5.3)
+# ⚡ The Electronist's Guide (v6.2.1)
 
 An interactive, visual desktop app for learning about and calculating values
 for common electronic components — built with Python's `tkinter` for the UI
@@ -93,6 +93,89 @@ inductor — and simulate it in DC or AC:
   standard RC/RL cases, or the steady-state value for other combinations
   (an honest simplification — a full transient for reactive-on-both-sides
   networks would need 2nd-order analysis).
+
+## What's new in v6.2.1 (polish)
+
+- **Schematics no longer stretch** on wide windows: the voltage divider, the
+  transistor junction visualizer and the transistor basic-circuit schematics keep
+  their proportions and are centred instead of being pulled across the screen.
+- **Drop-down lists close when you switch apps** (Alt+Tab, minimise): an open
+  combobox list no longer stays floating on top of other windows.
+- **Picture galleries on the Learn pages** that had no symbols: Boolean Logic
+  (every gate with symbol, expression and truth table), AC Circuits (R/L/C phase
+  relations with waveforms and phasors, impedance and power triangles,
+  resonance), Modulation (what AM, DSB, FM, PM, ASK, FSK, BPSK and QPSK look
+  like, AM spectrum) and RF (two-port S-parameters, reflection, standing waves,
+  Smith-chart landmarks, λ/4 transformer, stubs).
+
+## What's new in v6.2 (more room on screen)
+
+- **Learn is now its own sub-tab everywhere.** The theory/formula panel and the
+  schematic-symbol gallery no longer sit in a permanent right-hand column: every
+  page (Resistors, Capacitors, Inductors, Transistors, Op-Amps, Batteries,
+  AC/DC Basics, Kirchhoff, Boolean Logic, AC Circuits, Modulation, RF) has a
+  **Learn** tab, exactly like Diodes / LEDs. Calculators, charts and simulators
+  now use the full window width. Learn pages show the theory at a comfortable
+  reading width with the symbols beside it; AC/DC Basics shows Ohm's law and
+  Kirchhoff's laws side by side. Ohm's law + live simulator, and KVL + KCL, are
+  now laid out side by side too.
+- **Virtual VNA rebuilt for readability.** Each channel keeps its controls in a
+  compact block and hands the rest of the space to the plot. A **Layout** switch
+  offers *A | B side by side* (default), *A over B*, *Only A* or *Only B* (one
+  channel over the whole page). Marker read-outs are shown in a strip above the
+  plot (never on top of the trace), markers sit in a compact 2×2 grid, the mouse
+  wheel zooms the frequency axis around the cursor, and slim **Full view / Zoom
+  box / Pan / Save image** buttons replace the bulky toolbar. A zoom is kept while
+  you place markers; plot margins re-fit on every resize so labels never clip.
+  Group delay is now plotted in ns (matching its axis label).
+
+## What's new in v6.1 (circuit builders)
+
+- **Logic Circuit Builder** rebuilt: drag parts from the list onto the grid (or click, then click the
+  grid - the tool returns to Select by itself, Shift keeps it); wire by pressing on any pin dot and
+  dragging to another pin (compatible pins light up, drops snap, works in either direction); click a
+  switch to flip it; drag empty space to pan; right-click menu (toggle, rename, duplicate, disconnect,
+  delete); Undo/Redo, Duplicate, Fit; unconnected inputs shown as red rings and listed; live truth
+  table (click a row to set the switches) and the minimized expression of every output; 8 ready-made
+  examples; save/open circuits as .json. The builder now uses the full page width.
+- **Multiport RF Simulator builder** rebuilt: one-click placement of parts (R rotates), drag-and-drop
+  from the list, every connection point drawn (red ring = not connected, dot = connected, big dot =
+  junction), wiring by dragging from any point with neat L-shaped wires that avoid parts, automatic
+  T-junctions when a wire or part lands on a wire, wires follow a part when it is moved, sliders for
+  every value, auto-simulate on every change with a live S-parameter plot next to the schematic,
+  plain-language circuit check (click an item to select the part), Undo/Redo, Duplicate, Fit, node
+  names, 8 examples (π attenuator, LC low-pass, RLC band-pass, L-match, λ/4 transformer, open-stub
+  notch, 3-port splitter, through line) that also set a suitable sweep.
+
+## What's new in v6.0
+
+- **Resistor colour bands** are drawn with one consistent pitch: value bands evenly spaced, a clear
+  gap, then tolerance (and temp.co) — identical spacing for 4, 5 and 6-band parts.
+- **SMD & Codes** sub-tab on Resistors, Capacitors and Inductors: decode any marking (3/4-digit,
+  EIA-96, R/m notation, 0 Ω jumpers; capacitor pF codes with tolerance & voltage codes, EIA-198
+  letter codes, tantalum voltage letters, 4n7-style; inductor µH/R/N codes), with every possible
+  reading and its working, the chip drawn to scale in the chosen package, value → all markings,
+  nearest E-series values, package/power tables and the capacitor colour-band code.
+- **Diodes**: Circuit Lab (rectifier ± reservoir C, clippers, zener clipper, clampers, voltage
+  doubler, AM envelope detector, freewheeling diode) simulated by a small built-in SPICE-like engine
+  (`minispice.py`) with a time cursor that lights up the conducting diode, PIV and peak current;
+  I-V Explorer (Si/Ge/Schottky/LEDs/zener, temperature, log scale, load line & Q point);
+  Zener Regulator designer (worst-case R range, powers, line/load regulation plots);
+  LED Array planner (series/parallel strings, resistor, efficiency, Vf-spread sensitivity).
+- **Op-Amps**: Circuit Lab with 15 configurations — inverting, non-inverting, buffer, summing,
+  differential (with resistor mismatch/CMRR), integrator, differentiator, comparator, inverting and
+  non-inverting Schmitt triggers, peak detector, precision rectifier, relaxation oscillator,
+  square + triangle generator and Wien-bridge sine oscillator; ideal or real op-amp models
+  (GBW, slew rate, output headroom), waveforms + X-Y transfer plot and key numbers.
+- **Filters** rebuilt as a Filter Lab: 14 filters (RC/RL, 2× RC, twin-T, RLC band-pass/stop, LC
+  2nd-order, active 1st-order, Sallen-Key LP/HP, MFB band-pass) with sliders, "design for f0/Q/gain",
+  Bode plot, response to sine/square/triangle/sweep, step response, poles & zeros and a harmonics
+  view. The old L-section builder is kept as a second sub-tab.
+- **AC Circuits & Phasors**: Phasor Lab (8 series/parallel/mixed circuits) with rotating phasors
+  linked to the waveforms, tip-to-tail sums, impedance & power triangles and a frequency sweep with
+  resonance/Q/bandwidth; new Power & PF-correction page.
+- **Modulation** redesigned: one-screen Modulation Lab with AM, DSB-SC, SSB, FM, PM, ASK, FSK, BPSK
+  and QPSK; sliders; Overview / Spectrum (lin or dB) / Demodulate / I-Q views.
 
 ## What's new in v5.3 (speed)
 

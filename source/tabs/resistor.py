@@ -10,6 +10,9 @@ from .resistive_divider import ResistiveDividerPanel
 from solver import FormulaSolverPanel, resistor_formulas
 from symbols import SymbolGallery
 from i18n import t
+from widgets import lazy_tab
+from .smd_panel import SmdCodePanel
+from .learn import learn_page
 
 ACCENT_C = ACCENT["resistor"]
 
@@ -26,11 +29,9 @@ class ResistorTab(ttk.Frame):
         title.grid(row=0, column=0, columnspan=2, sticky="w", padx=20, pady=(16, 6))
 
         left = ttk.Frame(self, style="Tab.TFrame")
-        left.grid(row=1, column=0, sticky="nsew", padx=(20, 10), pady=10)
+        left.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=20, pady=10)
         left.columnconfigure(0, weight=1)
         left.rowconfigure(0, weight=1)
-        right = ttk.Frame(self, style="Card.TFrame")
-        right.grid(row=1, column=1, sticky="nsew", padx=(10, 20), pady=10)
 
         nb = ttk.Notebook(left)
         nb.grid(row=0, column=0, sticky="nsew")
@@ -40,6 +41,7 @@ class ResistorTab(ttk.Frame):
         divider_tab = ResistiveDividerPanel(nb)
         solver_tab = FormulaSolverPanel(nb, resistor_formulas(), ACCENT_C)
         nb.add(color_tab, text=t("resistor.subtab.color"))
+        lazy_tab(nb, t("smd.subtab"), lambda p: SmdCodePanel(p, "resistor", ACCENT_C))
         nb.add(solver_tab, text=t("solver.tab"))
         nb.add(combo_tab, text=t("resistor.subtab.combo"))
         nb.add(divider_tab, text=t("resistor.subtab.divider"))
@@ -47,7 +49,7 @@ class ResistorTab(ttk.Frame):
         self._build_calculator(color_tab)
         self._build_combo_section(combo_tab)
 
-        self._build_theory(right)
+        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "resistor", "resistor"))
 
     # ------------------------------------------------------------------
     def _build_calculator(self, parent):
@@ -100,11 +102,14 @@ class ResistorTab(ttk.Frame):
         n = self.band_count.get()
         labels = self._band_labels(n)
         options = self._band_options(n)
+        defaults = {4: ["Yellow", "Violet", "Red", "Gold"],
+                    5: ["Yellow", "Violet", "Black", "Brown", "Brown"],
+                    6: ["Yellow", "Violet", "Black", "Brown", "Brown", "Red"]}[n]
         for i, (label, opts) in enumerate(zip(labels, options)):
             col_frame = ttk.Frame(self.band_row_frame, style="Card.TFrame")
             col_frame.grid(row=0, column=i, padx=6)
             ttk.Label(col_frame, text=label, font=("Segoe UI", 8), style="CardBody.TLabel").pack()
-            var = tk.StringVar(value=opts[0])
+            var = tk.StringVar(value=defaults[i] if defaults[i] in opts else opts[0])
             cb = ttk.Combobox(col_frame, textvariable=var, values=opts, state="readonly", width=8)
             cb.pack()
             cb.bind("<<ComboboxSelected>>", lambda e: self._color_to_value())
@@ -255,13 +260,3 @@ class ResistorTab(ttk.Frame):
             )
         except Exception as exc:
             self.combo_result.set(f"{t('common.could_not_compute')}: {exc}")
-
-    # ------------------------------------------------------------------
-    def _build_theory(self, parent):
-        parent.columnconfigure(0, weight=1)
-        parent.rowconfigure(0, weight=1)
-        right_scroll = ScrollableFrame(parent, style="Card.TFrame")
-        right_scroll.grid(row=0, column=0, sticky="nsew")
-        SymbolGallery(right_scroll.body, "resistor", accent=ACCENT_C).pack(fill="x", pady=(0, 8))
-        panel = TheoryPanel(right_scroll.body, get_theory("resistor"), accent=ACCENT_C)
-        panel.pack(fill="both", expand=True)
