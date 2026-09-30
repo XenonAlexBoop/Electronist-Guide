@@ -13,6 +13,24 @@ from i18n import t
 from .smd_panel import SmdCodePanel
 from .learn import learn_page
 from widgets import lazy_tab
+from uikit import FitCanvas, two_columns
+from i18n import register
+register({"cap.cer.title": ("3-digit code → value", "Cod din 3 cifre → valoare"),
+          "cap.cer.tol_title": ("Tolerance letters (click one)", "Litere de toleranță (clic pe una)"),
+          "cap.cer.common": ("Common codes (click one)", "Coduri uzuale (clic pe unul)"),
+          "cap.cer.how_title": ("How to read it", "Cum se citește"),
+          "cap.cer.how": ("• 1st and 2nd digit: the significant figures.\n"
+                          "• 3rd digit: how many zeros follow — the value is in picofarads.\n"
+                          "• A letter after the digits is the tolerance (J = ±5 %, K = ±10 %, M = ±20 %).\n"
+                          "• Two digits only (e.g. 22) means the value directly in pF.\n"
+                          "• Example: 473J = 47 000 pF = 47 nF, ±5 %.\n"
+                          "• A separate number such as 50V or 1kV is the voltage rating.",
+                          "• Cifrele 1 și 2: cifrele semnificative.\n"
+                          "• Cifra 3: câte zerouri urmează — valoarea este în picofarazi.\n"
+                          "• O literă după cifre este toleranța (J = ±5 %, K = ±10 %, M = ±20 %).\n"
+                          "• Doar două cifre (ex. 22) înseamnă direct valoarea în pF.\n"
+                          "• Exemplu: 473J = 47 000 pF = 47 nF, ±5 %.\n"
+                          "• Un număr separat, ca 50V sau 1kV, este tensiunea nominală.")})
 
 ACCENT_C = ACCENT["capacitor"]
 
@@ -70,53 +88,103 @@ class CapacitorTab(ttk.Frame):
 
         lazy_tab(nb, t("capacitor.subtab.chart"), make_chart)
 
-        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "capacitor", "capacitor"))
+        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "capacitor", "capacitor", extra=lambda b: __import__("tabs.learn_extras", fromlist=["x"]).capacitor_refs(b, ACCENT_C)))
 
     # ------------------------------------------------------------------
     def _build_ceramic(self, parent):
-        pad = {"padx": 16, "pady": 6}
-        ttk.Label(parent, text=t("capacitor.enter_code"), font=FONT_BODY,
-                  style="CardBody.TLabel").grid(row=0, column=0, sticky="w", **pad)
-        self.code_var = tk.StringVar(value="104")
-        entry = ttk.Entry(parent, textvariable=self.code_var, width=10)
-        entry.grid(row=0, column=1, sticky="w", **pad)
-        entry.bind("<KeyRelease>", lambda e: self._ceramic_code_to_value())
-
-        ttk.Label(parent, text=t("capacitor.tolerance_letter"), font=FONT_BODY,
+        # v6.3: inputs + explanation left; big part drawing + clickable common codes right
+        left, right = two_columns(parent, left_min=460)
+        ttk.Label(left, text=t("cap.cer.title"), font=FONT_H2, foreground=ACCENT_C,
+                  style="CardSub.TLabel").grid(row=0, column=0, columnspan=2, sticky="w", padx=4, pady=(4, 8))
+        pad = {"padx": 4, "pady": 6}
+        ttk.Label(left, text=t("capacitor.enter_code"), font=FONT_BODY,
                   style="CardBody.TLabel").grid(row=1, column=0, sticky="w", **pad)
+        self.code_var = tk.StringVar(value="104")
+        entry = ttk.Entry(left, textvariable=self.code_var, width=10, font=("Consolas", 12, "bold"))
+        entry.grid(row=1, column=1, sticky="w", **pad)
+        entry.bind("<KeyRelease>", lambda e: self._ceramic_code_to_value())
+        ttk.Label(left, text=t("capacitor.tolerance_letter"), font=FONT_BODY,
+                  style="CardBody.TLabel").grid(row=2, column=0, sticky="w", **pad)
         self.tol_letter = tk.StringVar(value="K")
-        tol_cb = ttk.Combobox(parent, textvariable=self.tol_letter,
-                               values=list(CERAMIC_TOLERANCE.keys()), state="readonly", width=6)
-        tol_cb.grid(row=1, column=1, sticky="w", **pad)
+        tol_cb = ttk.Combobox(left, textvariable=self.tol_letter,
+                              values=list(CERAMIC_TOLERANCE.keys()), state="readonly", width=6)
+        tol_cb.grid(row=2, column=1, sticky="w", **pad)
         tol_cb.bind("<<ComboboxSelected>>", lambda e: self._ceramic_code_to_value())
 
-        self.ceramic_canvas = tk.Canvas(parent, width=460, height=170, bg="#fdfaf3", highlightthickness=0)
-        self.ceramic_canvas.grid(row=2, column=0, columnspan=2, padx=16, pady=6)
-
         self.ceramic_result = tk.StringVar()
-        ttk.Label(parent, textvariable=self.ceramic_result, font=FONT_MONO, foreground=ACCENT_C,
-                  style="CardFormula.TLabel").grid(row=3, column=0, columnspan=2, sticky="w", padx=16, pady=(0, 12))
+        ttk.Label(left, textvariable=self.ceramic_result, font=("Consolas", 16, "bold"), foreground=ACCENT_C,
+                  style="CardFormula.TLabel").grid(row=3, column=0, columnspan=2, sticky="w", padx=4, pady=(14, 2))
+        self.ceramic_steps = tk.StringVar()
+        ttk.Label(left, textvariable=self.ceramic_steps, font=FONT_MONO, style="CardBody.TLabel",
+                  justify="left").grid(row=4, column=0, columnspan=2, sticky="w", padx=4, pady=(4, 12))
+
+        ttk.Label(left, text=t("cap.cer.tol_title"), font=("Segoe UI", 10, "bold"), foreground=ACCENT_C,
+                  style="CardSub.TLabel").grid(row=5, column=0, columnspan=2, sticky="w", padx=4, pady=(8, 4))
+        tolf = tk.Frame(left, bg="#ffffff")
+        tolf.grid(row=6, column=0, columnspan=2, sticky="w", padx=4)
+        self._tol_cells = {}
+        for k, (letter, txt) in enumerate(CERAMIC_TOLERANCE.items()):
+            cell = tk.Label(tolf, text=f"{letter}\n{txt}", font=("Segoe UI", 9), bg="#f4f6fa", fg="#1f2a44",
+                            width=10, pady=3, cursor="hand2", relief="flat", bd=1)
+            cell.grid(row=k // 5, column=k % 5, padx=2, pady=2, sticky="ew")
+            cell.bind("<Button-1>", lambda _e, L=letter: (self.tol_letter.set(L), self._ceramic_code_to_value()))
+            self._tol_cells[letter] = cell
+
+        ttk.Label(left, text=t("cap.cer.how_title"), font=("Segoe UI", 10, "bold"), foreground=ACCENT_C,
+                  style="CardSub.TLabel").grid(row=7, column=0, columnspan=2, sticky="w", padx=4, pady=(18, 4))
+        ttk.Label(left, text=t("cap.cer.how"), font=FONT_BODY, style="CardBody.TLabel", wraplength=460,
+                  justify="left").grid(row=8, column=0, columnspan=2, sticky="w", padx=4)
+
+        right.columnconfigure(0, weight=1)
+        right.rowconfigure(0, weight=1)
+        self.ceramic_canvas = FitCanvas(right, 420, 170, kmax=2.0)
+        self.ceramic_canvas.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
+        ttk.Label(right, text=t("cap.cer.common"), font=("Segoe UI", 10, "bold"), foreground=ACCENT_C,
+                  style="CardSub.TLabel").grid(row=1, column=0, sticky="w", pady=(0, 4))
+        grid = tk.Frame(right, bg="#ffffff")
+        grid.grid(row=2, column=0, sticky="ew")
+        codes = ["100", "220", "470", "101", "221", "471", "102", "222", "472",
+                 "103", "223", "473", "104", "224", "474", "105", "225", "475",
+                 "106", "226", "476", "151", "331", "681"]
+        per = 6
+        for c in range(per):
+            grid.columnconfigure(c, weight=1, uniform="cc")
+        self._code_cells = {}
+        for k, code in enumerate(codes):
+            pf = int(code[:2]) * 10 ** int(code[2])
+            cell = tk.Label(grid, text=f"{code}\n{format_value(pf * 1e-12, 'F')}", font=("Consolas", 10),
+                            bg="#f4f6fa", fg="#1f2a44", pady=6, cursor="hand2")
+            cell.grid(row=k // per, column=k % per, padx=2, pady=2, sticky="ew")
+            cell.bind("<Button-1>", lambda _e, cd=code: (self.code_var.set(cd), self._ceramic_code_to_value()))
+            self._code_cells[code] = cell
+
+        from .smd_panel import CapBandPanel
+        CapBandPanel(right, ACCENT_C).grid(row=3, column=0, sticky="ew", pady=(10, 0))
 
         self._ceramic_code_to_value()
 
     def _ceramic_code_to_value(self):
         code = self.code_var.get().strip()
-        draw_capacitor_ceramic(self.ceramic_canvas, code)
+        self.ceramic_canvas.show(lambda: draw_capacitor_ceramic(self.ceramic_canvas, code, w=420, h=170))
+        for cd, cell in getattr(self, "_code_cells", {}).items():
+            cell.configure(bg="#fde7c7" if cd == code else "#f4f6fa")
+        for L, cell in getattr(self, "_tol_cells", {}).items():
+            cell.configure(bg="#fde7c7" if L == self.tol_letter.get() else "#f4f6fa")
         if not code.isdigit() or len(code) < 2:
             self.ceramic_result.set(t("capacitor.enter_valid_code"))
+            self.ceramic_steps.set("")
             return
         if len(code) == 2:
             pf = int(code)
+            steps = f"{code} = {pf} pF"
         else:
             digits, mult = code[:-1], int(code[-1])
             pf = int(digits) * (10 ** mult)
+            steps = f"{digits} × 10^{mult} pF = {pf:g} pF"
         tol_txt = CERAMIC_TOLERANCE.get(self.tol_letter.get(), "")
         farads = pf * 1e-12
-        self.ceramic_result.set(
-            f"= {pf:g} pF  =  {format_value(farads, 'F')}   ({t('capacitor.tolerance_word')} {tol_txt})"
-        )
-
-
+        self.ceramic_result.set(f"= {format_value(farads, 'F')}   {tol_txt}")
+        self.ceramic_steps.set(steps + f"\n{t('capacitor.tolerance_word')}: {self.tol_letter.get()} = {tol_txt}")
 
     # ------------------------------------------------------------------
     def _build_reactance(self, parent):
@@ -166,7 +234,9 @@ class CapacitorTab(ttk.Frame):
         mixed_tab = MixedBuilderPanel(inner_nb, kind="capacitor", accent=ACCENT_C)
         inner_nb.add(quick_tab, text=t("combos.subtab.quicklist"))
         inner_nb.add(mixed_tab, text=t("combos.subtab.mixed"))
-        self._build_combo(quick_tab)
+        from combos import QuickComboPanel
+        QuickComboPanel(quick_tab, "capacitor", ACCENT_C, t("capacitor.combo_title"),
+                        t("capacitor.combo_instructions"), "100n, 220n, 1u").pack(fill="both", expand=True)
 
     def _build_combo(self, parent):
         pad = {"padx": 16, "pady": 6}

@@ -31,4 +31,5 @@ class OpAmpTab(ttk.Frame):
     @staticmethod
     def _learn(parent):
         from .learn import learn_page
-        return learn_page(parent, ACCENT_C, "opamp", "opamp")
+        from .learn_extras import opamp_refs
+        return learn_page(parent, ACCENT_C, "opamp", "opamp", extra=lambda b: opamp_refs(b, ACCENT_C))

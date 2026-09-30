@@ -82,6 +82,7 @@ class ParamForm(ttk.Frame):
         self.columnconfigure(1, weight=0)
         self.columnconfigure(3, weight=1)
         self._sliders = {}
+        self._ints = {f["key"] for f in fields if f.get("int")}
         for r, f in enumerate(fields):
             ttk.Label(self, text=f["label"], font=FONT_BODY, style="CardBody.TLabel",
                       width=max(label_width, len(f["label"]) + 1),
@@ -135,7 +136,7 @@ class ParamForm(ttk.Frame):
         if getattr(self, "_lock", False):
             return
         v = self._from_pos(key, pos)
-        self.vars[key].set(_nice(v))
+        self.vars[key].set(str(int(round(v))) if key in self._ints else _nice(v))
         self._deb()
 
     def _typed(self, key):
@@ -212,3 +213,93 @@ def eng(v, unit, digits=3):
         if av >= f * 0.99999:
             return f"{v / f:.{digits}g} {sym}{unit}"
     return f"{v:.{digits}g} {unit}"
+
+
+# ---------------------------------------------------------------------------
+# v6.3 layout helpers
+class FitCanvas(tk.Canvas):
+    """A canvas that shows a drawing made for a fixed "design size"
+    (base_w x base_h) scaled to the space it is given: coordinates, line
+    widths and font sizes grow together (between kmin and kmax) and the
+    picture is centred.  Use .show(fn) where fn() draws on the canvas at
+    design size (it may call canvas.delete("all") itself)."""
+
+    def __init__(self, parent, base_w, base_h, kmin=0.7, kmax=1.8, bg="#fdfaf3", height=None, **kw):
+        super().__init__(parent, width=base_w, height=height or base_h, bg=bg,
+                         highlightthickness=0, **kw)
+        self.base_w, self.base_h = base_w, base_h
+        self.kmin, self.kmax = kmin, kmax
+        self._fn = None
+        self.k = 1.0
+        self.ox = self.oy = 0.0
+        self._size = (0, 0)
+        self.bind("<Configure>", debounce(self, self._on_resize, 60))
+
+    def _on_resize(self, e=None):
+        size = (self.winfo_width(), self.winfo_height())
+        if size == self._size:
+            return
+        self._size = size
+        self.refresh()
+
+    def show(self, fn):
+        self._fn = fn
+        self.refresh()
+
+    def refresh(self):
+        if self._fn is None:
+            return
+        self.delete("all")
+        self._fn()
+        w, h = self.winfo_width(), self.winfo_height()
+        if w < 20 or h < 20:
+            w, h = self.base_w, self.base_h
+        k = max(self.kmin, min(self.kmax, w / self.base_w, h / self.base_h))
+        self.k = k
+        self.ox = (w - self.base_w * k) / 2
+        self.oy = (h - self.base_h * k) / 2
+        if abs(k - 1) > 1e-3:
+            self.scale("all", 0, 0, k, k)
+            for item in self.find_all():
+                typ = self.type(item)
+                try:
+                    if typ == "text":
+                        f = list(self.tk.splitlist(self.itemcget(item, "font")))
+                        if len(f) >= 2:
+                            size = int(f[1])
+                            f[1] = str(int(round(size * k)) if size > 0 else int(round(size * k)))
+                            self.itemconfigure(item, font=tuple(f))
+                        wd = float(self.itemcget(item, "width") or 0)
+                        if wd:
+                            self.itemconfigure(item, width=wd * k)
+                    elif typ in ("line", "rectangle", "oval", "polygon", "arc"):
+                        wd = float(self.itemcget(item, "width") or 1)
+                        self.itemconfigure(item, width=max(1.0, wd * (1 + (k - 1) * 0.75)))
+                        if typ == "line" and self.itemcget(item, "arrow") != "none":
+                            shp = [float(v) for v in self.tk.splitlist(self.itemcget(item, "arrowshape"))]
+                            self.itemconfigure(item, arrowshape=tuple(v * k for v in shp))
+                except (tk.TclError, ValueError):
+                    pass
+        self.move("all", self.ox, self.oy)
+
+    def to_design(self, x, y):
+        """Canvas (pixel) coordinates -> design coordinates (for clicks)."""
+        return (x - self.ox) / self.k, (y - self.oy) / self.k
+
+
+def two_columns(parent, left_min=460, left_weight=1, right_weight=2, gap=18, pady=(10, 10)):
+    """Return (left, right) frames laid out side by side in `parent` (grid)."""
+    from widgets import ScrollableFrame
+    parent.columnconfigure(0, weight=1)
+    parent.rowconfigure(0, weight=1)
+    sf = ScrollableFrame(parent, style="Card.TFrame", fill_height=True)
+    sf.grid(row=0, column=0, sticky="nsew")
+    parent = sf.body
+    parent.columnconfigure(0, weight=left_weight, minsize=left_min, uniform="2col")
+    parent.columnconfigure(1, weight=right_weight, uniform="2col")
+    parent.rowconfigure(0, weight=1)
+    left = ttk.Frame(parent, style="Card.TFrame")
+    left.grid(row=0, column=0, sticky="nsew", padx=(16, gap // 2), pady=pady)
+    right = ttk.Frame(parent, style="Card.TFrame")
+    right.grid(row=0, column=1, sticky="nsew", padx=(gap // 2, 16), pady=pady)
+    return left, right

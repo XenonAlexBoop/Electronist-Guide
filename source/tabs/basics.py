@@ -3,7 +3,9 @@ import tkinter as tk
 from tkinter import ttk
 from data import get_theory
 from widgets import parse_value, format_value, ScrollableFrame, FONT_H1, FONT_H2, FONT_BODY, FONT_MONO, ACCENT
-from i18n import t
+from i18n import t, register
+
+register({"basics.live.iv": ("I-V line of the resistor (slope = 1/R)", "Dreapta I-U a rezistorului (panta = 1/R)")})
 from tabs.kirchhoff import KirchhoffTab
 
 ACCENT_C = ACCENT["basics"]
@@ -65,8 +67,10 @@ class OhmsLawPanel(ttk.Frame):
         ttk.Label(parent, text=t("basics.ohms_triangle_title"), font=FONT_H2, foreground=ACCENT_C,
                   style="CardSub.TLabel").grid(row=0, column=0, columnspan=3, sticky="w", **pad)
 
-        self.canvas = tk.Canvas(parent, width=280, height=240, bg="#fdfaf3", highlightthickness=0)
-        self.canvas.grid(row=1, column=0, rowspan=4, padx=16, pady=6)
+        from uikit import FitCanvas
+        self.canvas = FitCanvas(parent, 280, 240, kmax=1.35, height=300)
+        self.canvas.grid(row=1, column=0, rowspan=4, padx=16, pady=6, sticky="nsew")
+        parent.columnconfigure(0, weight=1)
         self._draw_triangle()
 
         ttk.Label(parent, text=t("basics.fill_two"), font=FONT_BODY, style="CardBody.TLabel",
@@ -103,20 +107,25 @@ class OhmsLawPanel(ttk.Frame):
 
         ttk.Label(parent, text=t("basics.rms_peak_title"), font=FONT_H2, foreground=ACCENT_C,
                   style="CardSub.TLabel").grid(row=8, column=0, columnspan=3, sticky="w", padx=16, pady=(4, 4))
-        ttk.Label(parent, text=t("basics.peak_voltage"), font=FONT_BODY, style="CardBody.TLabel")\
-            .grid(row=9, column=0, sticky="w", padx=16)
+        prow = ttk.Frame(parent, style="Card.TFrame")
+        prow.grid(row=9, column=0, columnspan=3, sticky="w", padx=16)
+        ttk.Label(prow, text=t("basics.peak_voltage"), font=FONT_BODY, style="CardBody.TLabel").pack(side="left")
         self.peak_var = tk.StringVar(value="325")
-        entry = ttk.Entry(parent, textvariable=self.peak_var, width=10)
-        entry.grid(row=9, column=1, columnspan=2, sticky="w")
+        entry = ttk.Entry(prow, textvariable=self.peak_var, width=10)
+        entry.pack(side="left", padx=8)
         entry.bind("<KeyRelease>", lambda e: self._rms())
         self.rms_result = tk.StringVar()
         ttk.Label(parent, textvariable=self.rms_result, font=FONT_MONO, foreground=ACCENT_C,
-                  style="CardFormula.TLabel").grid(row=10, column=0, columnspan=3, sticky="w", padx=16, pady=(4, 14))
+                  style="CardFormula.TLabel").grid(row=10, column=0, columnspan=3, sticky="w", padx=16, pady=(4, 4))
+        self.sine_cv = FitCanvas(parent, 520, 200, kmax=1.3, height=210)
+        self.sine_cv.grid(row=11, column=0, columnspan=3, sticky="nsew", padx=16, pady=(4, 14))
         self._rms()
 
     def _draw_triangle(self):
+        self.canvas.show(self._paint_triangle)
+
+    def _paint_triangle(self):
         c = self.canvas
-        c.delete("all")
         cx, top = 140, 30
         p1 = (cx, top)
         p2 = (40, 200)
@@ -163,9 +172,28 @@ class OhmsLawPanel(ttk.Frame):
         try:
             peak = float(self.peak_var.get())
             rms = peak / math.sqrt(2)
-            self.rms_result.set(f"Vrms = Vpeak / √2 = {rms:.2f} V")
+            self.rms_result.set(f"Vrms = Vpeak / √2 = {rms:.2f} V      Vpp = 2·Vpeak = {2 * peak:.4g} V")
         except Exception:
             self.rms_result.set("")
+            return
+        self.sine_cv.show(lambda: self._paint_sine(peak, rms))
+
+    def _paint_sine(self, peak, rms):
+        c = self.sine_cv
+        x0, x1, ym, a = 120, 470, 100, 80
+        c.create_line(x0, ym, x1, ym, fill="#bbb")
+        pts = []
+        for k in range(201):
+            x = x0 + (x1 - x0) * k / 200
+            pts += [x, ym - a * math.sin(2 * math.pi * 1.5 * k / 200)]
+        c.create_line(*pts, fill="#c0392b", width=2, smooth=True)
+        yr = ym - a / math.sqrt(2)
+        for y, col, txt in ((ym - a, "#1f2a44", f"Vpeak {peak:.4g} V"), (yr, ACCENT_C, f"Vrms {rms:.4g} V"),
+                            (ym + a, "#1f2a44", f"−Vpeak")):
+            c.create_line(x0, y, x1, y, fill=col, dash=(4, 3))
+            c.create_text(x0 - 4, y, text=txt, anchor="e", font=("Segoe UI", 8, "bold"), fill=col)
+        c.create_line(x1 + 8, ym - a, x1 + 8, ym + a, arrow="both", fill="#8e44ad")
+        c.create_text(x1 + 12, ym, text="Vpp", anchor="w", font=("Segoe UI", 8, "bold"), fill="#8e44ad")
 
     # ------------------------------------------------------------------
     # Interactive Ohm's Law slider simulator: pick one quantity to "lock"
@@ -222,8 +250,69 @@ class OhmsLawPanel(ttk.Frame):
                   style="CardBody.TLabel", wraplength=420, justify="left")\
             .grid(row=15, column=0, columnspan=2, sticky="w", padx=16, pady=(0, 14))
 
+        # v6.3: the circuit and its I-V line react to the sliders
+        from uikit import FitCanvas
+        from charts import MplChartFrame
+        pics = ttk.Frame(parent, style="Card.TFrame")
+        pics.grid(row=16, column=0, columnspan=2, sticky="nsew", padx=16, pady=(0, 14))
+        pics.columnconfigure(0, weight=1, uniform="pp")
+        pics.columnconfigure(1, weight=1, uniform="pp")
+        self.live_cv = FitCanvas(pics, 360, 240, kmax=1.5, height=330)
+        self.live_cv.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        self.live_chart = MplChartFrame(pics, figsize=(3.6, 2.6), with_toolbar=False)
+        self.live_chart.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+        self.live_chart.canvas.get_tk_widget().configure(height=330)
+
         self._sync_live_sliders()
         self._on_live_lock_change()
+
+    def _live_pictures(self):
+        if not hasattr(self, "live_cv"):
+            return
+        v, i, r = self._live_values["V"], self._live_values["I"], self._live_values["R"]
+        import symbols as sym
+        from uikit import eng
+
+        def paint():
+            c = self.live_cv
+            x0, x1, y0, y1 = 70, 290, 50, 200
+            sym.wire(c, x0, y0, x0, (y0 + y1) / 2 - 18)
+            sym.wire(c, x0, (y0 + y1) / 2 + 18, x0, y1)
+            sym.dc_source(c, x0, (y0 + y1) / 2)
+            c.create_text(x0 - 24, (y0 + y1) / 2, text=f"{v:.3g} V", anchor="e", font=("Segoe UI", 11, "bold"),
+                          fill="#c62828")
+            sym.wire(c, x0, y0, x1, y0, x1, 85)
+            sym.resistor(c, x1, 85, x1, 165, label="R", value=eng(r, "Ω"), label_side=-1)
+            sym.wire(c, x1, 165, x1, y1, x0, y1)
+            # arrow thickness follows the current (log scale, 1 mA .. 2 A)
+            import math
+            w = 1.5 + 5 * max(0.0, min(1.0, (math.log10(max(i, 1e-4)) + 3) / 3.3))
+            c.create_line(120, y0 - 12, 240, y0 - 12, fill="#1f6fb2", width=w, arrow="last",
+                          arrowshape=(10 + w, 12 + w, 4 + w / 2))
+            c.create_text(180, y0 - 28, text=f"I = {eng(i, 'A')}", font=("Segoe UI", 11, "bold"), fill="#1f6fb2")
+            c.create_text(180, 225, text=f"P = V·I = {eng(v * i, 'W')}", font=("Segoe UI", 11, "bold"),
+                          fill="#8e44ad")
+        self.live_cv.show(paint)
+        import numpy as np
+        fig = self.live_chart.fig
+        fig.clear()
+        ax = fig.add_subplot(111)
+        vv = np.linspace(0, 24, 50)
+        ax.plot(vv, vv / r * 1e3, color=ACCENT_C, lw=2, label=f"R = {r:.3g} Ω")
+        ax.plot([v], [i * 1e3], "o", color="#c62828", ms=8, zorder=5)
+        ax.set_xlim(0, 24)
+        ax.set_ylim(0, max(50, min(2000, 24 / r * 1e3 * 1.05)))
+        ax.set_xlabel("V (V)", fontsize=9)
+        ax.set_ylabel("I (mA)", fontsize=9)
+        ax.set_title(t("basics.live.iv"), fontsize=9)
+        ax.tick_params(labelsize=8)
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=8, loc="upper left")
+        try:
+            fig.tight_layout(pad=0.6)
+        except Exception:
+            pass
+        self.live_chart.redraw()
 
     def _live_display_value(self, key):
         """Slider/readout units: V in volts, I in mA, R in ohms."""
@@ -244,6 +333,7 @@ class OhmsLawPanel(ttk.Frame):
                 self._live_readouts[key].set(f"{self._live_display_value(key):.3g} {unit}")
         finally:
             self._live_updating = False
+        self._live_pictures()
 
     def _on_live_lock_change(self):
         locked = self._live_locked.get()

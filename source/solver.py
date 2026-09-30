@@ -15,7 +15,11 @@ import tkinter as tk
 from tkinter import ttk
 
 from widgets import parse_value, format_value, FONT_BODY, FONT_H2, FONT_MONO
-from i18n import t, get_language
+from i18n import t, get_language, register
+
+register({"solver.sweep": ("How {sym} changes with", "Cum se schimbă {sym} în funcție de"),
+          "solver.sweep_hint": ("(from ÷10 to ×10 around the value you typed; dot = your case)",
+                                "(de la ÷10 la ×10 în jurul valorii introduse; punctul = cazul tău)")})
 
 PI = math.pi
 EPS0 = 8.8541878128e-12
@@ -135,39 +139,97 @@ class FormulaSolverPanel(ttk.Frame):
         super().__init__(parent, style="Card.TFrame")
         self.formulas = formulas
         self.accent = accent
-        self.columnconfigure(0, weight=1)
-
+        # v6.3: formula list on the left (everything visible at a glance, one
+        # click to switch), the chosen formula large on the right
+        self.columnconfigure(0, weight=2, minsize=300, uniform="fs")
+        self.columnconfigure(1, weight=3, uniform="fs")
+        self.columnconfigure(2, weight=4, uniform="fs")
+        self.rowconfigure(1, weight=1)
         ttk.Label(self, text=intro or t("solver.intro"), font=FONT_BODY, style="CardBody.TLabel",
-                  wraplength=560, justify="left").grid(row=0, column=0, sticky="w", padx=16, pady=(12, 6))
-
-        top = ttk.Frame(self, style="Card.TFrame")
-        top.grid(row=1, column=0, sticky="w", padx=16)
-        ttk.Label(top, text=t("solver.choose"), font=FONT_BODY, style="CardBody.TLabel").pack(side="left")
+                  wraplength=1200, justify="left").grid(row=0, column=0, columnspan=3, sticky="w",
+                                                       padx=16, pady=(12, 8))
+        left = ttk.Frame(self, style="Card.TFrame")
+        left.grid(row=1, column=0, sticky="nsew", padx=(16, 8), pady=(0, 14))
+        left.rowconfigure(1, weight=1)
+        left.columnconfigure(0, weight=1)
+        ttk.Label(left, text=t("solver.choose"), font=("Segoe UI", 10, "bold"), foreground=accent,
+                  style="CardSub.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 4))
         self._titles = [f"{i + 1}. {L(*f.title)}" for i, f in enumerate(formulas)]
         self.formula_var = tk.StringVar(value=self._titles[0])
-        cb = ttk.Combobox(top, textvariable=self.formula_var, values=self._titles, state="readonly", width=46)
-        cb.pack(side="left", padx=8)
-        cb.bind("<<ComboboxSelected>>", lambda e: self._build_form())
+        self.listbox = tk.Listbox(left, font=("Segoe UI", 11), activestyle="none", exportselection=False,
+                                  bd=0, highlightthickness=1, highlightbackground="#d4d9e2",
+                                  selectbackground=accent, selectforeground="white", bg="#f7f8fb")
+        for ttl in self._titles:
+            self.listbox.insert("end", "  " + ttl)
+        sb = ttk.Scrollbar(left, orient="vertical", command=self.listbox.yview)
+        self.listbox.configure(yscrollcommand=sb.set)
+        self.listbox.grid(row=1, column=0, sticky="nsew")
+        sb.grid(row=1, column=1, sticky="ns")
+        self.listbox.selection_set(0)
+        self.listbox.bind("<<ListboxSelect>>", self._on_pick)
 
+        right = ttk.Frame(self, style="Card.TFrame")
+        right.grid(row=1, column=1, sticky="nsew", padx=8, pady=(0, 14))
+        right.columnconfigure(0, weight=1)
+        self.title_var = tk.StringVar()
+        ttk.Label(right, textvariable=self.title_var, font=FONT_H2, style="CardSub.TLabel")\
+            .grid(row=0, column=0, sticky="w")
         self.eq_var = tk.StringVar()
-        ttk.Label(self, textvariable=self.eq_var, font=("Consolas", 15, "bold"), foreground=accent,
-                  style="CardFormula.TLabel").grid(row=2, column=0, sticky="w", padx=16, pady=(12, 2))
+        eqbox = tk.Frame(right, bg="#f4f6fa")
+        eqbox.grid(row=1, column=0, sticky="ew", pady=(6, 4))
+        tk.Label(eqbox, textvariable=self.eq_var, font=("Consolas", 22, "bold"), fg=accent, bg="#f4f6fa",
+                 anchor="w", padx=16, pady=12).pack(fill="x")
         self.note_var = tk.StringVar()
-        ttk.Label(self, textvariable=self.note_var, font=("Segoe UI", 9), style="CardBody.TLabel",
-                  wraplength=560, justify="left").grid(row=3, column=0, sticky="w", padx=16)
+        self._note = ttk.Label(right, textvariable=self.note_var, font=("Segoe UI", 9), style="CardBody.TLabel",
+                               wraplength=400, justify="left")
+        self._note.grid(row=2, column=0, sticky="w")
+        right.bind("<Configure>", lambda e: (self._note.configure(wraplength=max(300, e.width - 20)),
+                                             self._res.configure(wraplength=max(300, e.width - 20))), add="+")
 
-        self.form = ttk.Frame(self, style="Card.TFrame")
-        self.form.grid(row=4, column=0, sticky="w", padx=16, pady=8)
+        self.form = ttk.Frame(right, style="Card.TFrame")
+        self.form.grid(row=3, column=0, sticky="w", pady=10)
 
         self.result_var = tk.StringVar()
-        ttk.Label(self, textvariable=self.result_var, font=FONT_MONO, foreground=accent,
-                  style="CardFormula.TLabel", justify="left", wraplength=560)\
-            .grid(row=5, column=0, sticky="w", padx=16, pady=(4, 4))
-        ttk.Label(self, text=t("solver.hint"), font=("Segoe UI", 8), style="CardBody.TLabel",
-                  foreground="#666", wraplength=560, justify="left")\
-            .grid(row=6, column=0, sticky="w", padx=16, pady=(4, 16))
+        resbox = tk.Frame(right, bg="#ffffff", highlightthickness=1, highlightbackground="#e3e6ec")
+        resbox.grid(row=4, column=0, sticky="ew", pady=(4, 4))
+        tk.Frame(resbox, bg=accent, width=5).pack(side="left", fill="y")
+        self._res = tk.Label(resbox, textvariable=self.result_var, font=("Consolas", 14, "bold"), fg=accent,
+                             bg="#ffffff", justify="left", anchor="w", padx=12, pady=10, wraplength=400)
+        self._res.pack(side="left", fill="x", expand=True)
+        ttk.Label(right, text=t("solver.hint"), font=("Segoe UI", 8), style="CardBody.TLabel",
+                  foreground="#666", wraplength=400, justify="left")\
+            .grid(row=5, column=0, sticky="w", pady=(6, 0))
+
+        # how the answer depends on one of the inputs
+        # v6.4: the chart has its own column on the right, full height
+        chartcol = ttk.Frame(self, style="Card.TFrame")
+        chartcol.grid(row=1, column=2, sticky="nsew", padx=(8, 16), pady=(0, 14))
+        chartcol.columnconfigure(0, weight=1)
+        chartcol.rowconfigure(2, weight=1)
+        sw = ttk.Frame(chartcol, style="Card.TFrame")
+        sw.grid(row=0, column=0, sticky="w", pady=(0, 2))
+        self.sweep_lbl = tk.StringVar()
+        ttk.Label(sw, textvariable=self.sweep_lbl, font=("Segoe UI", 10, "bold"), foreground=accent,
+                  style="CardSub.TLabel").pack(side="left")
+        self.sweep_var = tk.StringVar()
+        self.sweep_cb = ttk.Combobox(sw, textvariable=self.sweep_var, state="readonly", width=22)
+        self.sweep_cb.pack(side="left", padx=8)
+        self.sweep_cb.bind("<<ComboboxSelected>>", lambda e: self._plot())
+        ttk.Label(chartcol, text=t("solver.sweep_hint"), font=("Segoe UI", 8), foreground="#666",
+                  style="CardBody.TLabel", wraplength=500, justify="left").grid(row=1, column=0, sticky="w")
+        from charts import MplChartFrame
+        self.chart = MplChartFrame(chartcol, figsize=(5.0, 4.0), with_toolbar=False)
+        self.chart.grid(row=2, column=0, sticky="nsew", pady=(4, 0))
+        self.chart.canvas.get_tk_widget().configure(height=320, width=300)
+        self._plot_job = None
 
         self._build_form()
+
+    def _on_pick(self, _e=None):
+        sel = self.listbox.curselection()
+        if sel:
+            self.formula_var.set(self._titles[sel[0]])
+            self._build_form()
 
     def _formula(self):
         return self.formulas[self._titles.index(self.formula_var.get())]
@@ -176,6 +238,7 @@ class FormulaSolverPanel(ttk.Frame):
         for ch in self.form.winfo_children():
             ch.destroy()
         f = self._formula()
+        self.title_var.set(L(*f.title))
         self.eq_var.set(f.equation)
         self.note_var.set(L(*f.note) if f.note else "")
         self.entries, self.vars = {}, {}
@@ -192,13 +255,13 @@ class FormulaSolverPanel(ttk.Frame):
         for r, v in enumerate(f.vars, start=1):
             ttk.Radiobutton(self.form, variable=self.solve_var, value=v.key,
                             command=self._on_solve_change).grid(row=r, column=0, pady=2)
-            ttk.Label(self.form, text=v.symbol, font=("Consolas", 11, "bold"), foreground=self.accent,
+            ttk.Label(self.form, text=v.symbol, font=("Consolas", 13, "bold"), foreground=self.accent,
                       style="CardFormula.TLabel").grid(row=r, column=1, sticky="w")
             ttk.Label(self.form, text=L(*v.name), font=FONT_BODY, style="CardBody.TLabel")\
                 .grid(row=r, column=2, sticky="w", padx=(6, 6))
             var = tk.StringVar(value=v.default)
-            ent = ttk.Entry(self.form, textvariable=var, width=14)
-            ent.grid(row=r, column=3, sticky="w", pady=2)
+            ent = ttk.Entry(self.form, textvariable=var, width=16, font=("Consolas", 11))
+            ent.grid(row=r, column=3, sticky="w", pady=4)
             ent.bind("<KeyRelease>", lambda e: self._compute())
             ttk.Label(self.form, text=v.unit, font=FONT_BODY, style="CardBody.TLabel")\
                 .grid(row=r, column=4, sticky="w", padx=(4, 6))
@@ -248,6 +311,84 @@ class FormulaSolverPanel(ttk.Frame):
         if len(sols) > 1:
             txt += "\n" + t("solver.multiple")
         self.result_var.set(txt)
+        self._schedule_plot()
+
+    # ---- sweep plot -------------------------------------------------------
+    def _schedule_plot(self):
+        if getattr(self, "_plot_job", None):
+            try:
+                self.after_cancel(self._plot_job)
+            except Exception:
+                pass
+        self._plot_job = self.after(250, self._plot)
+
+    def _sync_sweep_choices(self):
+        f = self._formula()
+        unknown = self.solve_var.get()
+        var = next(v for v in f.vars if v.key == unknown)
+        opts = [f"{v.symbol} – {L(*v.name)}" for v in f.vars if v.key != unknown]
+        self._sweep_keys = [v.key for v in f.vars if v.key != unknown]
+        self.sweep_cb["values"] = opts
+        if self.sweep_var.get() not in opts and opts:
+            self.sweep_var.set(opts[0])
+        self.sweep_lbl.set(t("solver.sweep").format(sym=var.symbol))
+
+    def _plot(self):
+        self._plot_job = None
+        import numpy as np
+        try:
+            self._sync_sweep_choices()
+            f = self._formula()
+            unknown = self.solve_var.get()
+            uvar = next(v for v in f.vars if v.key == unknown)
+            k = self._sweep_keys[self.sweep_cb["values"].index(self.sweep_var.get())]
+            xvar = next(v for v in f.vars if v.key == k)
+            known = {v.key: parse_value(self.vars[v.key].get()) for v in f.vars if v.key != unknown}
+        except Exception:
+            return
+        x0 = known[k]
+        fig = self.chart.fig
+        fig.clear()
+        ax = fig.add_subplot(111)
+        if xvar.signed or x0 <= 0:
+            span = abs(x0) if x0 else 1.0
+            xs = np.linspace(x0 - 2 * span, x0 + 2 * span, 61)
+            logx = False
+        else:
+            xs = np.logspace(np.log10(x0) - 1, np.log10(x0) + 1, 61)
+            logx = True
+        ys = []
+        for x in xs:
+            kn = dict(known)
+            kn[k] = float(x)
+            sol = solve_for(f, unknown, kn) if unknown == f.out else solve_for(f, unknown, kn)[:1]
+            ys.append(sol[0] if sol else np.nan)
+        ys = np.array(ys, dtype=float)
+        ax.plot(xs, ys, color=self.accent, lw=2)
+        y0 = solve_for(f, unknown, known)
+        if y0:
+            ax.plot([x0], [y0[0]], "o", color="#1f2a44", ms=7, zorder=5)
+        if logx:
+            ax.set_xscale("log")
+        fin = ys[np.isfinite(ys)]
+        if len(fin) and np.all(fin > 0) and fin.max() / max(fin.min(), 1e-300) > 50:
+            ax.set_yscale("log")
+        try:
+            from matplotlib.ticker import EngFormatter
+            ax.xaxis.set_major_formatter(EngFormatter(unit=xvar.unit, sep=" "))
+            ax.yaxis.set_major_formatter(EngFormatter(unit=uvar.unit, sep=" "))
+            ax.xaxis.set_minor_formatter(EngFormatter(unit="", sep="")) if False else None
+        except Exception:
+            pass
+        ax.set_xlabel(f"{xvar.symbol} [{xvar.unit}]" if xvar.unit else xvar.symbol, fontsize=9)
+        ax.set_ylabel(f"{uvar.symbol} [{uvar.unit}]" if uvar.unit else uvar.symbol, fontsize=9)
+        ax.tick_params(labelsize=8)
+        ax.grid(True, which="both", alpha=0.3)
+        try:
+            fig.tight_layout(pad=0.6)
+        except Exception:
+            pass
+        self.chart.redraw()
 
     @staticmethod
     def _fmt(x, unit):

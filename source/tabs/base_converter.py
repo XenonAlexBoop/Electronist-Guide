@@ -17,7 +17,13 @@ import tkinter as tk
 from tkinter import ttk
 
 from widgets import parse_value, format_value, ScrollableFrame, FONT_H1, FONT_H2, FONT_BODY, FONT_MONO
-from i18n import t
+from i18n import t, register
+
+register({"base.adc_plot_code": ("output code", "cod de ieșire"),
+          "base.adc_plot_ideal": ("ideal (no quantisation)", "ideal (fără cuantizare)"),
+          "base.adc_plot_err": ("error (LSB)", "eroare (LSB)"),
+          "base.adc_plot_title": ("{bits}-bit converter - staircase around your input (1 LSB = {lsb})",
+                                  "Convertor pe {bits} biți - treptele în jurul intrării tale (1 LSB = {lsb})")})
 
 ACCENT_C = "#0d7d5f"
 
@@ -230,11 +236,18 @@ class BaseConverterPanel(ttk.Frame):
 class AdcDacPanel(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent, style="Card.TFrame")
-        self.columnconfigure(0, weight=1)
+        # v6.3: controls on the left, the quantisation staircase on the right
+        self.columnconfigure(0, weight=0, minsize=460)
+        self.columnconfigure(1, weight=1)
+        self.rowconfigure(9, weight=1)
         self._updating = False
 
         header = tk.Frame(self, bg=ACCENT_C, height=6)
-        header.grid(row=0, column=0, sticky="ew")
+        header.grid(row=0, column=0, columnspan=2, sticky="ew")
+        from charts import MplChartFrame
+        self.chart = MplChartFrame(self, figsize=(6.5, 5.0), with_toolbar=False)
+        self.chart.grid(row=1, column=1, rowspan=9, sticky="nsew", padx=(8, 16), pady=(12, 16))
+        self.chart.canvas.get_tk_widget().configure(height=300)
 
         ttk.Label(self, text=t("base.adc_title"), font=FONT_H1, style="CardTitle.TLabel") \
             .grid(row=1, column=0, sticky="w", padx=16, pady=(12, 4))
@@ -360,6 +373,53 @@ class AdcDacPanel(ttk.Frame):
         self.out_vars["base.code_hex"].set("0x" + int_to_base(code, 16, group=4))
         recon = code / max_code * vref if max_code else 0
         self.out_vars["base.reconstructed_voltage"].set(format_value(recon, "V"))
+        try:
+            v_in = parse_value(self.voltage_var.get())
+        except ValueError:
+            v_in = recon
+        self._plot(v_in, code, vref, max_code, bits)
+
+    def _plot(self, v_in, code, vref, max_code, bits):
+        import numpy as np
+        fig = self.chart.fig
+        fig.clear()
+        if not vref or max_code <= 0:
+            self.chart.redraw()
+            return
+        lsb = vref / max_code
+        ax = fig.add_subplot(211)
+        ax2 = fig.add_subplot(212, sharex=ax)
+        if max_code <= 64:
+            v0, v1 = 0.0, vref
+        else:                                  # zoom on +-10 LSB around the input
+            v0 = max(0.0, min(v_in, vref) - 10 * lsb)
+            v1 = min(vref, v0 + 20 * lsb)
+            v0 = max(0.0, v1 - 20 * lsb)
+        vv = np.linspace(v0, v1, 1200)
+        cc = np.clip(np.round(vv / lsb), 0, max_code)
+        ax.step(vv, cc, where="post", color=ACCENT_C, lw=2, label=t("base.adc_plot_code"))
+        ax.plot(vv, vv / lsb, color="#999", lw=1, ls="--", label=t("base.adc_plot_ideal"))
+        ax.plot([v_in], [code], "o", color="#c62828", ms=8, zorder=5)
+        ax.set_ylabel(t("base.adc_plot_code"), fontsize=9)
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=8, loc="upper left")
+        ax.set_title(t("base.adc_plot_title").format(bits=bits, lsb=format_value(lsb, "V")), fontsize=10)
+        err = (cc * lsb - vv) / lsb
+        ax2.plot(vv, err, color="#7c3aed", lw=1.5)
+        ax2.axhline(0.5, color="#999", ls=":", lw=1)
+        ax2.axhline(-0.5, color="#999", ls=":", lw=1)
+        ax2.plot([v_in], [(code * lsb - v_in) / lsb], "o", color="#c62828", ms=7)
+        ax2.set_ylabel(t("base.adc_plot_err"), fontsize=9)
+        ax2.set_xlabel("Vin (V)", fontsize=9)
+        ax2.set_ylim(-0.8, 0.8)
+        ax2.grid(alpha=0.3)
+        for a in (ax, ax2):
+            a.tick_params(labelsize=8)
+        try:
+            fig.tight_layout(pad=0.6)
+        except Exception:
+            pass
+        self.chart.redraw()
 
 
 class NumberSystemsTab(ttk.Frame):

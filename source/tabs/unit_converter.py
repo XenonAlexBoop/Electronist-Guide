@@ -180,12 +180,7 @@ class UnitConverterTab(ttk.Frame):
         nb.add(SmartConverterPanel(nb), text=t("uc2.tab.convert"))
         nb.add(LevelsPanel(nb), text=t("uc2.tab.levels"))
         nb.add(NumberPanel(nb), text=t("uc2.tab.numbers"))
-        adc = ttk.Frame(nb, style="Card.TFrame")
-        sf = ScrollableFrame(adc, style="Card.TFrame")
-        sf.pack(fill="both", expand=True)
-        sf.body.columnconfigure(0, weight=1)
-        AdcDacPanel(sf.body).grid(row=0, column=0, sticky="nsew")
-        nb.add(adc, text=t("uc2.tab.adc"))
+        nb.add(AdcDacPanel(nb), text=t("uc2.tab.adc"))
 
 
 def _scroll_page(parent):
@@ -204,11 +199,10 @@ def _scroll_page(parent):
 class SmartConverterPanel(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent, style="Card.TFrame")
-        self.columnconfigure(0, weight=1)
-        self.rowconfigure(0, weight=1)
-        wrap, body = _scroll_page(self)
-        wrap.grid(row=0, column=0, sticky="nsew")
+        # v6.3: no scroll wrapper - the category list and the table stretch to the page height
+        body = self
         body.columnconfigure(1, weight=1)
+        body.rowconfigure(1, weight=1)
 
         ttk.Label(body, text=t("uc2.convert_intro"), font=FONT_BODY, style="CardBody.TLabel", wraplength=900,
                   justify="left").grid(row=0, column=0, columnspan=2, sticky="w", padx=16, pady=(12, 8))
@@ -219,18 +213,19 @@ class SmartConverterPanel(ttk.Frame):
         ttk.Label(left, text=t("uc2.category"), font=("Segoe UI", 10, "bold"), style="CardBody.TLabel")\
             .pack(anchor="w")
         self.cats = [("elec", _L("Electrical (SI prefixes)", "Electrice (prefixe SI)"), None)] + CATEGORIES
-        self.cat_list = tk.Listbox(left, height=len(self.cats), width=34, font=("Segoe UI", 10), activestyle="none",
+        self.cat_list = tk.Listbox(left, height=len(self.cats), width=30, font=("Segoe UI", 11), activestyle="none",
                                    selectbackground=ACCENT_C, selectforeground="white", exportselection=False,
                                    highlightthickness=1, relief="flat")
         for _, name, _u in self.cats:
             self.cat_list.insert("end", "  " + _tr(name))
-        self.cat_list.pack(anchor="w", pady=(4, 0))
+        self.cat_list.pack(anchor="w", fill="y", expand=True, pady=(4, 0))
         self.cat_list.bind("<<ListboxSelect>>", lambda e: self._on_category())
 
         # input + results
         right = ttk.Frame(body, style="Card.TFrame")
         right.grid(row=1, column=1, sticky="nsew", padx=(0, 16), pady=(0, 16))
         right.columnconfigure(0, weight=1)
+        right.rowconfigure(4, weight=1)
         self.title_var = tk.StringVar()
         ttk.Label(right, textvariable=self.title_var, font=FONT_H2, foreground=ACCENT_C, style="CardTitle.TLabel")\
             .grid(row=0, column=0, sticky="w")
@@ -255,18 +250,21 @@ class SmartConverterPanel(ttk.Frame):
         ttk.Label(right, textvariable=self.hint_var, font=("Segoe UI", 8), foreground="#777",
                   style="CardBody.TLabel").grid(row=2, column=0, sticky="w")
         self.best_var = tk.StringVar()
-        ttk.Label(right, textvariable=self.best_var, font=("Consolas", 14, "bold"), foreground=ACCENT_C,
+        ttk.Label(right, textvariable=self.best_var, font=("Consolas", 18, "bold"), foreground=ACCENT_C,
                   style="CardFormula.TLabel").grid(row=3, column=0, sticky="w", pady=(6, 4))
 
         tv_wrap = ttk.Frame(right, style="Card.TFrame")
         tv_wrap.grid(row=4, column=0, sticky="nsew")
+        st = ttk.Style(self)
+        st.configure("Big.Treeview", font=("Consolas", 12), rowheight=30)
+        st.configure("Big.Treeview.Heading", font=("Segoe UI", 10, "bold"))
         self.tree = ttk.Treeview(tv_wrap, columns=("unit", "value", "desc"), show="headings", height=13,
-                                 selectmode="browse")
+                                 selectmode="browse", style="Big.Treeview")
         self.tree.heading("unit", text=t("uc2.col_unit"))
         self.tree.heading("value", text=t("uc2.col_value"))
         self.tree.heading("desc", text=t("uc2.col_desc"))
-        self.tree.column("unit", width=110, anchor="w", stretch=False)
-        self.tree.column("value", width=260, anchor="e", stretch=False)
+        self.tree.column("unit", width=140, anchor="w", stretch=False)
+        self.tree.column("value", width=360, anchor="e", stretch=False)
         self.tree.column("desc", width=280, anchor="w")
         self.tree.tag_configure("src", background="#dbeafe")
         self.tree.tag_configure("best", foreground="#0b6b3a")
@@ -374,6 +372,28 @@ class SmartConverterPanel(ttk.Frame):
 # ---------------------------------------------------------------------------
 # 2. dB & signal levels (linked fields)
 # ---------------------------------------------------------------------------
+from i18n import register as _reg_lv
+_reg_lv({
+    "uc2.lv.ladder": ("Where is this level?", "Unde se situează acest nivel?"),
+    "uc2.nb.nibbles": ("Hex digits and their 4 bits (click one: sets the lowest nibble)",
+                       "Cifrele hexa și cei 4 biți ai lor (clic: setează ultimul nibble)"),
+    "uc2.lv.ladder_hint": ("Typical signal levels on a dBm scale (1 mW = 0 dBm). Click the scale to jump there.",
+                           "Niveluri tipice pe o scară în dBm (1 mW = 0 dBm). Clic pe scară pentru a sări acolo."),
+    "uc2.lv.l.gps": ("GPS at the antenna", "GPS la antenă"),
+    "uc2.lv.l.sens": ("receiver sensitivity", "sensibilitate receptor"),
+    "uc2.lv.l.wifi_weak": ("weak Wi-Fi", "Wi-Fi slab"),
+    "uc2.lv.l.wifi_good": ("good Wi-Fi", "Wi-Fi bun"),
+    "uc2.lv.l.mic": ("consumer line level", "nivel de linie consumator"),
+    "uc2.lv.l.mw": ("1 mW", "1 mW"),
+    "uc2.lv.l.line": ("pro audio +4 dBu", "audio profesional +4 dBu"),
+    "uc2.lv.l.wifi_tx": ("Wi-Fi transmitter", "emițător Wi-Fi"),
+    "uc2.lv.l.watt": ("1 W", "1 W"),
+    "uc2.lv.l.phone": ("phone (GSM max)", "telefon (GSM max)"),
+    "uc2.lv.l.fm": ("100 W transmitter", "emițător de 100 W"),
+    "uc2.lv.l.kw": ("1 kW", "1 kW"),
+})
+
+
 class LevelsPanel(ttk.Frame):
     FIELDS = [
         ("w", "P (W)", "uc2.lv.w"), ("dbm", "dBm", "uc2.lv.dbm"), ("dbw", "dBW", "uc2.lv.dbw"),
@@ -443,6 +463,7 @@ class LevelsPanel(ttk.Frame):
         ttk.Label(rt, text=t("uc2.lv.ratio_note"), font=("Segoe UI", 8), foreground="#777", style="CardBody.TLabel",
                   wraplength=380, justify="left").grid(row=6, column=0, columnspan=3, sticky="w", pady=(4, 8))
         tv = ttk.Treeview(rt, columns=("db", "p", "v"), show="headings", height=11)
+        tv.grid_configure = tv.grid_configure
         for c, key, w in (("db", "db.table.db", 70), ("p", "db.table.power_ratio", 120), ("v", "db.table.voltage_ratio", 120)):
             tv.heading(c, text=t(key))
             tv.column(c, width=w, anchor="center")
@@ -450,6 +471,17 @@ class LevelsPanel(ttk.Frame):
             tv.insert("", "end", values=(f"{db:+d}" if db else "0", f"× {10 ** (db / 10):.4g}", f"× {10 ** (db / 20):.4g}"))
         tv.grid(row=7, column=0, columnspan=3, sticky="w")
         tv.bind("<<TreeviewSelect>>", lambda e: self._pick_db(tv))
+
+        # v6.3: where the level sits among everyday signal levels
+        ttk.Label(body, text=t("uc2.lv.ladder"), font=FONT_H2, foreground=ACCENT_C, style="CardTitle.TLabel")\
+            .grid(row=2, column=0, columnspan=2, sticky="w", padx=16, pady=(18, 2))
+        ttk.Label(body, text=t("uc2.lv.ladder_hint"), font=("Segoe UI", 8), foreground="#777",
+                  style="CardBody.TLabel").grid(row=3, column=0, columnspan=2, sticky="w", padx=16)
+        self.ladder = tk.Canvas(body, height=175, bg="#ffffff", highlightthickness=0)
+        self.ladder.grid(row=4, column=0, columnspan=2, sticky="ew", padx=16, pady=(4, 16))
+        self.ladder.bind("<Configure>", lambda e: self._draw_ladder(), add="+")
+        self.ladder.bind("<Button-1>", self._ladder_click)
+        self._ladder_dbm = 0.0
 
         self._last = "dbm"
         self.vars["dbm"].set("0")
@@ -497,6 +529,53 @@ class LevelsPanel(ttk.Frame):
                 self.vars[k].set(f"{v:.3f}")
         self._mute = False
         self.lv_note.set(t("uc2.lv.note").format(r=_eng(r, "Ω")))
+        self._ladder_dbm = out["dbm"]
+        self._draw_ladder()
+
+    LADDER = [(-120, "uc2.lv.l.gps"), (-100, "uc2.lv.l.sens"), (-70, "uc2.lv.l.wifi_weak"),
+              (-40, "uc2.lv.l.wifi_good"), (-10, "uc2.lv.l.mic"), (0, "uc2.lv.l.mw"),
+              (4, "uc2.lv.l.line"), (20, "uc2.lv.l.wifi_tx"), (30, "uc2.lv.l.watt"), (33, "uc2.lv.l.phone"),
+              (50, "uc2.lv.l.fm"), (60, "uc2.lv.l.kw")]
+
+    def _x_of(self, dbm, W):
+        lo, hi = -130, 70
+        return 40 + (W - 80) * (min(hi, max(lo, dbm)) - lo) / (hi - lo)
+
+    def _draw_ladder(self):
+        c = getattr(self, "ladder", None)
+        if c is None:
+            return
+        c.delete("all")
+        W = max(600, c.winfo_width())
+        y = 132
+        # colour band
+        for k in range(200):
+            x0 = 40 + (W - 80) * k / 200
+            x1 = 40 + (W - 80) * (k + 1) / 200
+            g = k / 200
+            col = "#%02x%02x%02x" % (int(60 + 180 * g), int(130 + 60 * (1 - abs(g - 0.5) * 2)), int(220 - 170 * g))
+            c.create_rectangle(x0, y - 8, x1 + 1, y + 8, fill=col, outline="")
+        for dbm in range(-130, 71, 10):
+            x = self._x_of(dbm, W)
+            c.create_line(x, y + 8, x, y + 14, fill="#555")
+            c.create_text(x, y + 24, text=f"{dbm:+d}" if dbm else "0", font=("Segoe UI", 8), fill="#555")
+        for i, (dbm, key) in enumerate(self.LADDER):
+            x = self._x_of(dbm, W)
+            ty = y - 44 - (i % 3) * 30
+            c.create_line(x, y - 8, x, ty, fill="#94a3b8", dash=(2, 2))
+            c.create_text(x, ty, text=f"{t(key)}  {dbm:+d}", font=("Segoe UI", 8), fill="#1f2a44", anchor="s")
+        x = self._x_of(self._ladder_dbm, W)
+        c.create_polygon(x - 9, y - 22, x + 9, y - 22, x, y - 8, fill="#c62828", outline="")
+        c.create_line(x, y - 8, x, y + 8, fill="#c62828", width=3)
+        c.create_rectangle(x - 34, y + 10, x + 34, y + 30, fill="#c62828", outline="")
+        c.create_text(x, y + 20, text=f"{self._ladder_dbm:.1f} dBm", font=("Segoe UI", 9, "bold"), fill="white")
+
+    def _ladder_click(self, e):
+        W = max(600, self.ladder.winfo_width())
+        dbm = -130 + 200 * (e.x - 40) / (W - 80)
+        self.vars["dbm"].set(f"{max(-130, min(70, dbm)):.1f}")
+        self._recalc("dbm")
+        self.vars["dbm"].set(f"{max(-130, min(70, dbm)):.1f}")
 
     def _ratio(self, src):
         try:
@@ -598,9 +677,35 @@ class NumberPanel(ttk.Frame):
                         ("+1", lambda v, n: (v + 1) & ((1 << n) - 1)), ("−1", lambda v, n: (v - 1) & ((1 << n) - 1))):
             ttk.Button(tools, text=lab, style="Small.TButton",
                        command=lambda fn=fn: self._op(fn)).pack(side="left", padx=2)
+        self.sum_var = tk.StringVar()
+        ttk.Label(body, textvariable=self.sum_var, font=("Consolas", 15, "bold"), foreground="#1f6a5f",
+                  style="CardFormula.TLabel").grid(row=7, column=0, sticky="w", padx=16, pady=(8, 2))
         self.info = tk.StringVar()
-        ttk.Label(body, textvariable=self.info, font=("Consolas", 10, "bold"), foreground=ACCENT_C,
-                  style="CardFormula.TLabel", justify="left").grid(row=7, column=0, sticky="w", padx=16, pady=(6, 16))
+        ttk.Label(body, textvariable=self.info, font=("Consolas", 11, "bold"), foreground=ACCENT_C,
+                  style="CardFormula.TLabel", justify="left").grid(row=8, column=0, sticky="w", padx=16, pady=(6, 12))
+
+        # v6.3: reference strip - the 16 hex digits with their 4-bit patterns (click to put one in the low nibble)
+        ttk.Label(body, text=t("uc2.nb.nibbles"), font=FONT_H2, foreground=ACCENT_C, style="CardTitle.TLabel")\
+            .grid(row=9, column=0, sticky="w", padx=16, pady=(4, 4))
+        strip = tk.Frame(body, bg="#e3e6ec")
+        strip.grid(row=10, column=0, sticky="ew", padx=16, pady=(0, 16))
+        self._nib_cells = []
+        for k in range(16):
+            strip.columnconfigure(k, weight=1, uniform="nib")
+            cell = tk.Frame(strip, bg="#ffffff", cursor="hand2")
+            cell.grid(row=0, column=k, sticky="nsew", padx=(0, 1), pady=1)
+            a = tk.Label(cell, text=f"{k:X}", font=("Consolas", 16, "bold"), fg=ACCENT_C, bg="#ffffff")
+            b = tk.Label(cell, text=f"{k:04b}", font=("Consolas", 10), fg="#1f2a44", bg="#ffffff")
+            d = tk.Label(cell, text=str(k), font=("Segoe UI", 8), fg="#777", bg="#ffffff")
+            for w in (a, b, d):
+                w.pack()
+            for w in (cell, a, b, d):
+                w.bind("<Button-1>", lambda _e, k=k: self._set_nibble(k))
+            self._nib_cells.append((cell, a, b, d))
+        self._refresh()
+
+    def _set_nibble(self, k):
+        self.value = (self.value & ~0xF) | k
         self._refresh()
 
     def _mask(self):
@@ -677,6 +782,11 @@ class NumberPanel(ttk.Frame):
             f"(little-endian: {' '.join(f'{b:02X}' for b in v.to_bytes(n // 8, 'little'))})")
         _ = sv
         self._draw_bits()
+        low = v & 0xF
+        for k, (cell, a, b, d) in enumerate(getattr(self, "_nib_cells", [])):
+            bg = "#dbeafe" if k == low else "#ffffff"
+            for w in (cell, a, b, d):
+                w.configure(bg=bg)
 
     def _bit_geo(self):
         n = self.bits.get()
@@ -684,7 +794,7 @@ class NumberPanel(ttk.Frame):
         per_row = min(n, 32)
         rows = n // per_row
         gap = 6
-        cell = min(34, (W - 20 - gap * (per_row // 4 - 1)) / per_row)
+        cell = min(110, (W - 20 - gap * (per_row // 4 - 1)) / per_row)
         return n, per_row, rows, cell, gap
 
     def _draw_bits(self):
@@ -703,13 +813,39 @@ class NumberPanel(ttk.Frame):
                 c.create_rectangle(x, y, x + cell - 3, y + cell - 3, fill=fill, outline="#94a3b8",
                                    tags=("bit", f"b{bit}"))
                 c.create_text(x + (cell - 3) / 2, y + (cell - 3) / 2, text=str(on), fill="white" if on else "#555",
-                              font=("Consolas", 11 if cell > 22 else 8, "bold"), tags=(f"b{bit}",))
+                              font=("Consolas", max(8, int(cell * 0.36)), "bold"), tags=(f"b{bit}",))
                 c.create_text(x + (cell - 3) / 2, y - 8, text=str(bit), fill="#777",
-                              font=("Segoe UI", 7 if cell > 18 else 6))
-                if bit % 4 == 0 and cell > 14:
+                              font=("Segoe UI", 9 if cell > 40 else 7 if cell > 18 else 6))
+                if cell > 40:
+                    weight = str(1 << bit) if bit < 20 else f"2^{bit}"
+                    c.create_text(x + (cell - 3) / 2, y + cell + 6, text=weight, fill="#1f6a5f" if on else "#999",
+                                  font=("Segoe UI", 8, "bold" if on else "normal"))
+                elif bit % 4 == 0 and cell > 14:
                     weight = f"2^{bit}"
                     c.create_text(x + (cell - 3) / 2, y + cell + 6, text=weight, fill="#999", font=("Segoe UI", 6))
-        c.configure(height=22 + rows * (cell + 30))
+        # nibble -> hex digit under each group of 4 (only when there is room)
+        if cell > 24:
+            for r in range(rows):
+                y = 22 + r * (cell + 30) + cell + 16
+                for g in range(per_row // 4):
+                    j0 = g * 4
+                    xa = 10 + j0 * cell + (j0 // 4) * gap
+                    xb = xa + 4 * cell - 3
+                    top_bit = n - 1 - (r * per_row + j0)
+                    nib = (v >> (top_bit - 3)) & 0xF
+                    c.create_line(xa, y, xa, y + 5, xb, y + 5, xb, y, fill="#94a3b8")
+                    c.create_text((xa + xb) / 2, y + 18, text=f"{nib:X}", font=("Consolas", 14 if cell > 40 else 10, "bold"),
+                                  fill=ACCENT_C)
+            extra = 44
+        else:
+            extra = 0
+        c.configure(height=22 + rows * (cell + 30) + extra)
+        # place-value sum
+        ones = [1 << b for b in range(n - 1, -1, -1) if (v >> b) & 1]
+        if len(ones) <= 12:
+            self.sum_var.set(" + ".join(str(x) for x in ones) + f"  =  {v}" if ones else "0")
+        else:
+            self.sum_var.set(f"{len(ones)} {t('uc2.nb.ones').lower()}  =  {v}")
 
     def _click_bit(self, e):
         n, per_row, rows, cell, gap = self._bit_geo()

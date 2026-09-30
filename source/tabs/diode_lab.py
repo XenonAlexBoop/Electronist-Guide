@@ -1209,8 +1209,9 @@ class LedArrayPanel(ttk.Frame):
         self.warn = note(left, "", wrap=380, color="#c62828")
         right = ttk.Frame(top, style="Card.TFrame")
         right.pack(side="left", fill="both", expand=True, padx=(16, 0))
-        self.canvas = tk.Canvas(right, width=520, height=300, bg="#101418", highlightthickness=0)
-        self.canvas.pack(anchor="nw")
+        from uikit import FitCanvas
+        self.canvas = FitCanvas(right, 520, 300, kmax=1.6, height=430, bg="#101418")
+        self.canvas.pack(fill="x", anchor="nw")
         ttk.Label(right, text=t("la.table"), font=("Segoe UI", 10, "bold"), style="CardSub.TLabel")\
             .pack(anchor="w", pady=(8, 2))
         cols = ("per", "str", "r", "eff", "sens")
@@ -1296,8 +1297,10 @@ class LedArrayPanel(ttk.Frame):
         self._draw(o, n)
 
     def _draw(self, o, n):
+        self.canvas.show(lambda: self._paint(o, n))
+
+    def _paint(self, o, n):
         cv = self.canvas
-        cv.delete("all")
         W, H = 520, 300
         col = next(x for x in LED_COLORS if x[0] == self.color.get())[3]
         strings, per = o["strings"], o["per"]

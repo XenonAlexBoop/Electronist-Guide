@@ -560,7 +560,7 @@ STRINGS = {
 
     # ---- Capacitor tab -----------------------------------------------
     "capacitor.tab_title": {"en": "🔋 Capacitor Calculators", "ro": "🔋 Calculatoare Condensator"},
-    "capacitor.subtab.ceramic": {"en": "Ceramic (code)", "ro": "Ceramic (cod)"},
+    "capacitor.subtab.ceramic": {"en": "THT codes (ceramic / film)", "ro": "Coduri THT (ceramic / film)"},
     "capacitor.subtab.electro": {"en": "Electrolytic", "ro": "Electrolitic"},
     "capacitor.subtab.reactance": {"en": "Reactance (Xc)", "ro": "Reactanță (Xc)"},
     "capacitor.subtab.combo": {"en": "Series / Parallel", "ro": "Serie / Paralel"},

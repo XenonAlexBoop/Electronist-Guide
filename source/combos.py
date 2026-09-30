@@ -364,3 +364,147 @@ class MixedBuilderPanel(ttk.Frame):
         else:
             note = t("combos.detail_note_l").format(e=format_value(0.5 * eq * src * src, "J"))
         self.detail_note.set(note)
+
+
+# ---------------------------------------------------------------------------
+# v6.3 "Quick list": series AND parallel side by side, each with its diagram,
+# total and how the voltage / current is shared between the parts.
+from i18n import register as _register  # noqa: E402
+
+_register({
+    "qc.series": ("In series", "În serie"),
+    "qc.parallel": ("In parallel", "În paralel"),
+    "qc.share_v": ("Share of the voltage", "Cota din tensiune"),
+    "qc.share_i": ("Share of the current", "Cota din curent"),
+    "qc.share_q": ("Share of the charge", "Cota din sarcină"),
+    "qc.note.r_s": ("Always larger than the largest part — the biggest resistor takes most of the voltage.",
+                    "Mereu mai mare decât cea mai mare piesă — rezistorul cel mai mare preia cea mai mare tensiune."),
+    "qc.note.r_p": ("Always smaller than the smallest part — the smallest resistor carries most of the current.",
+                    "Mereu mai mică decât cea mai mică piesă — rezistorul cel mai mic duce cel mai mare curent."),
+    "qc.note.c_s": ("Smaller than the smallest capacitor — the SMALLEST capacitor gets the largest voltage (check its rating!).",
+                    "Mai mică decât cel mai mic condensator — cel MAI MIC condensator primește cea mai mare tensiune (verifică-i tensiunea nominală!)."),
+    "qc.note.c_p": ("Capacitances simply add — every capacitor sees the same voltage.",
+                    "Capacitățile se adună — fiecare condensator vede aceeași tensiune."),
+    "qc.note.l_s": ("Inductances add (no mutual coupling) — the largest inductor takes most of the voltage.",
+                    "Inductanțele se adună (fără cuplaj) — bobina cea mai mare preia cea mai mare tensiune."),
+    "qc.note.l_p": ("Smaller than the smallest inductor — the smallest one carries most of the current.",
+                    "Mai mică decât cea mai mică bobină — cea mai mică duce cel mai mare curent."),
+})
+
+
+class QuickComboPanel(ttk.Frame):
+    FORMULA = {
+        "resistor": ("R = R1 + R2 + …", "1/R = 1/R1 + 1/R2 + …", "Ω"),
+        "capacitor": ("1/C = 1/C1 + 1/C2 + …", "C = C1 + C2 + …", "F"),
+        "inductor": ("L = L1 + L2 + …", "1/L = 1/L1 + 1/L2 + …", "H"),
+    }
+
+    def __init__(self, parent, kind, accent, title, instructions, default):
+        from uikit import FitCanvas
+        super().__init__(parent, style="Card.TFrame")
+        self.kind, self.accent = kind, accent
+        # v6.4: scrolls instead of squashing the diagrams on short windows
+        outer = self
+        outer.columnconfigure(0, weight=1)
+        outer.rowconfigure(0, weight=1)
+        sf = ScrollableFrame(outer, style="Card.TFrame", fill_height=True)
+        sf.grid(row=0, column=0, sticky="nsew")
+        B = sf.body
+        B.columnconfigure(0, weight=1, uniform="qc")
+        B.columnconfigure(1, weight=1, uniform="qc")
+        B.rowconfigure(3, weight=1)
+        ttk.Label(B, text=title, font=FONT_H2, foreground=accent, style="CardSub.TLabel")\
+            .grid(row=0, column=0, columnspan=2, sticky="w", padx=16, pady=(12, 2))
+        ttk.Label(B, text=instructions, font=FONT_BODY, style="CardBody.TLabel", justify="left")\
+            .grid(row=1, column=0, columnspan=2, sticky="w", padx=16)
+        row = ttk.Frame(B, style="Card.TFrame")
+        row.grid(row=2, column=0, columnspan=2, sticky="w", padx=16, pady=8)
+        self.inp = tk.StringVar(value=default)
+        e = ttk.Entry(row, textvariable=self.inp, width=46, font=("Consolas", 11))
+        e.pack(side="left")
+        e.bind("<KeyRelease>", lambda _e: self._deb())
+        e.bind("<Return>", lambda _e: self.update_all())
+        ttk.Button(row, text=t("common.calculate"), command=self.update_all).pack(side="left", padx=8)
+        self.msg = tk.StringVar()
+        ttk.Label(row, textvariable=self.msg, foreground="#c62828", style="CardBody.TLabel").pack(side="left")
+        self._deb = debounce(self, self.update_all, 300)
+
+        self.cards = {}
+        for col, mode in enumerate(("series", "parallel")):
+            card = tk.Frame(B, bg="#ffffff", highlightthickness=1, highlightbackground="#e3e6ec")
+            card.grid(row=3, column=col, sticky="nsew", padx=(16 if col == 0 else 8, 8 if col == 0 else 16),
+                      pady=(4, 16))
+            card.columnconfigure(0, weight=1)
+            card.rowconfigure(1, weight=1)
+            tk.Label(card, text=t("qc." + mode), font=("Segoe UI", 12, "bold"), fg=accent, bg="#ffffff",
+                     anchor="w").grid(row=0, column=0, sticky="ew", padx=12, pady=(10, 0))
+            cv = FitCanvas(card, 460, 230, kmin=0.3, kmax=1.5, height=260)
+            cv.grid(row=1, column=0, sticky="nsew", padx=10, pady=6)
+            total = tk.StringVar()
+            tk.Label(card, textvariable=total, font=("Consolas", 16, "bold"), fg=accent, bg="#ffffff",
+                     anchor="w").grid(row=2, column=0, sticky="ew", padx=12)
+            tk.Label(card, text=self.FORMULA[kind][col], font=("Consolas", 10), fg="#5b6475", bg="#ffffff",
+                     anchor="w").grid(row=3, column=0, sticky="ew", padx=12)
+            note_key = {"resistor": "r", "capacitor": "c", "inductor": "l"}[kind] + ("_s" if col == 0 else "_p")
+            tk.Label(card, text=t("qc.note." + note_key), font=("Segoe UI", 9), fg="#5b6475", bg="#ffffff",
+                     anchor="w", justify="left", wraplength=520).grid(row=4, column=0, sticky="ew", padx=12,
+                                                                      pady=(2, 6))
+            share_key = {("resistor", 0): "qc.share_v", ("resistor", 1): "qc.share_i",
+                         ("capacitor", 0): "qc.share_v", ("capacitor", 1): "qc.share_q",
+                         ("inductor", 0): "qc.share_v", ("inductor", 1): "qc.share_i"}[(kind, col)]
+            tk.Label(card, text=t(share_key), font=("Segoe UI", 9, "bold"), fg="#1f2a44", bg="#ffffff",
+                     anchor="w").grid(row=5, column=0, sticky="ew", padx=12)
+            bars = tk.Canvas(card, height=60, bg="#ffffff", highlightthickness=0)
+            bars.grid(row=6, column=0, sticky="ew", padx=12, pady=(2, 12))
+            bars.bind("<Configure>", lambda _e: self.update_all(), add="+")
+            self.cards[mode] = (cv, total, bars)
+        self.after(50, self.update_all)
+
+    def _values(self):
+        from widgets import parse_value_list
+        return parse_value_list(self.inp.get())
+
+    def update_all(self):
+        try:
+            vals = [v for v in self._values() if v > 0]
+            if not vals:
+                raise ValueError
+            self.msg.set("")
+        except Exception:
+            self.msg.set(t("common.enter_valid_values"))
+            return
+        unit = self.FORMULA[self.kind][2]
+        prefix = sym.PREFIX_BY_KIND.get(self.kind, "R")
+        ssum = sum(vals)
+        rsum = sum(1 / v for v in vals)
+        if self.kind == "capacitor":
+            tot = {"series": 1 / rsum, "parallel": ssum}
+            share = {"series": [(1 / v) / rsum for v in vals], "parallel": [v / ssum for v in vals]}
+        else:
+            tot = {"series": ssum, "parallel": 1 / rsum}
+            share = {"series": [v / ssum for v in vals], "parallel": [(1 / v) / rsum for v in vals]}
+        sym_ = {"resistor": "R", "capacitor": "C", "inductor": "L"}[self.kind]
+        for mode, (cv, total, bars) in self.cards.items():
+            from drawing import draw_combo_diagram
+            dh = 230 if mode == "series" else max(230, 52 * len(vals) + 50)
+            cv.base_h = dh
+            cv.show(lambda cv=cv, mode=mode, dh=dh: draw_combo_diagram(cv, vals, mode, self.kind, w=460, h=dh,
+                                                                       fixed=True))
+            total.set(f"{sym_}total = {format_value(tot[mode], unit)}")
+            self._bars(bars, [f"{prefix}{i + 1}" for i in range(len(vals))], share[mode])
+
+    def _bars(self, c, names, fr):
+        c.delete("all")
+        W = max(200, c.winfo_width())
+        n = len(names)
+        rows = min(n, 8)
+        rh = 18
+        c.configure(height=rows * rh + 4)
+        for i in range(rows):
+            y = 2 + i * rh
+            c.create_text(0, y + rh / 2, text=names[i], anchor="w", font=("Segoe UI", 8, "bold"), fill="#1f2a44")
+            x0, x1 = 40, W - 60
+            c.create_rectangle(x0, y + 3, x1, y + rh - 3, fill="#eef1f6", outline="")
+            c.create_rectangle(x0, y + 3, x0 + (x1 - x0) * fr[i], y + rh - 3, fill=self.accent, outline="")
+            c.create_text(W - 4, y + rh / 2, text=f"{100 * fr[i]:.1f} %", anchor="e",
+                          font=("Consolas", 9), fill="#1f2a44")

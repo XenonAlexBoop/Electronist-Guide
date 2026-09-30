@@ -46,9 +46,9 @@ class DiodeTab(ttk.Frame):
 
         nb = ttk.Notebook(left)
         nb.grid(row=0, column=0, sticky="nsew")
-        calc_tab = ttk.Frame(nb, style="Card.TFrame")
+        from .led_calc import LedResistorPanel
+        calc_tab = LedResistorPanel(nb, ACCENT_C)
         nb.add(calc_tab, text=t("diode.subtab.calc"))
-        self._build_calculator(calc_tab)
 
         def framed(builder):
             def make(parent):

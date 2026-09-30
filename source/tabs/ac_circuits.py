@@ -524,5 +524,4 @@ class ACCircuitsTab(ttk.Frame):
         lazy_tab(nb, t("acw.tab"), ACWaveformPanel)
         lazy_tab(nb, t("pl.pf"), PFCorrectionPanel)
         lazy_tab(nb, t("pl.3ph"), PowerSystemsPanel)
-        lazy_tab(nb, t("common.learn"), theory)
-        build_lazy(first)
+        build_lazy(lazy_tab(nb, t("common.learn"), theory))

@@ -4,7 +4,18 @@ representations of components on a tk.Canvas.
 """
 import math
 from data import COLOR_CODE, WIRE_COLOR, BODY_COLOR
-from i18n import t
+from i18n import t, register
+
+register({
+    "cc.col.color": ("Colour", "Culoare"), "cc.col.digit": ("Digit", "Cifră"),
+    "cc.col.mult": ("Multiplier", "Multiplicator"), "cc.col.tol": ("Tolerance", "Toleranță"),
+    "cc.col.tempco": ("Temp. coeff.", "Coef. temp."),
+    "color.black": ("Black", "Negru"), "color.brown": ("Brown", "Maro"), "color.red": ("Red", "Roșu"),
+    "color.orange": ("Orange", "Portocaliu"), "color.yellow": ("Yellow", "Galben"),
+    "color.green": ("Green", "Verde"), "color.blue": ("Blue", "Albastru"), "color.violet": ("Violet", "Violet"),
+    "color.grey": ("Grey", "Gri"), "color.white": ("White", "Alb"), "color.gold": ("Gold", "Auriu"),
+    "color.silver": ("Silver", "Argintiu"), "color.none": ("None", "Fără"),
+})
 import symbols as sym
 
 
@@ -709,7 +720,7 @@ _COMBO_STYLE = {
 }
 
 
-def draw_combo_diagram(canvas, values, mode, kind, w=460, h=200, labels=None, unit=None):
+def draw_combo_diagram(canvas, values, mode, kind, w=460, h=200, labels=None, unit=None, fixed=False):
     """Schematic of N same-type components in series or parallel, drawn
     with the real schematic symbol (resistor / capacitor / inductor).
     `labels`, if given, overrides the auto-generated R1/C1/L1... names."""
@@ -717,10 +728,11 @@ def draw_combo_diagram(canvas, values, mode, kind, w=460, h=200, labels=None, un
     n = len(values)
     if n == 0:
         return
-    try:
-        w = max(w, int(canvas.winfo_width())) if int(canvas.winfo_width()) > 50 else w
-    except Exception:
-        pass
+    if not fixed:
+        try:
+            w = max(w, int(canvas.winfo_width())) if int(canvas.winfo_width()) > 50 else w
+        except Exception:
+            pass
     prefix = sym.PREFIX_BY_KIND.get(kind, "R")
     unit = unit if unit is not None else {"resistor": "Ω", "capacitor": "F", "inductor": "H"}.get(kind, "")
     names = labels if labels is not None else [f"{prefix}{i + 1}" for i in range(n)]
@@ -729,7 +741,8 @@ def draw_combo_diagram(canvas, values, mode, kind, w=460, h=200, labels=None, un
     if mode == "series":
         span = (term_r - term_l - 20) / n
         s = max(0.55, min(1.0, span / 95))
-        canvas.configure(height=h)
+        if not fixed:
+            canvas.configure(height=h)
         sym.wire(canvas, term_l, cy, term_l + 10, cy)
         x = term_l + 10
         for i, val in enumerate(values):
@@ -739,8 +752,12 @@ def draw_combo_diagram(canvas, values, mode, kind, w=460, h=200, labels=None, un
         sym.wire(canvas, x, cy, term_r, cy)
     else:
         spacing = 52
-        need_h = max(h, int(n * spacing + 50))
-        canvas.configure(height=need_h)
+        if fixed:
+            spacing = min(52, (h - 40) / max(1, n - 1)) if n > 1 else 52
+            need_h = h
+        else:
+            need_h = max(h, int(n * spacing + 50))
+            canvas.configure(height=need_h)
         top = need_h / 2 - (n - 1) * spacing / 2
         bot = top + (n - 1) * spacing
         cy = need_h / 2
@@ -1170,3 +1187,63 @@ def draw_timing_diagram(canvas, rows, left_margin=34, step_w=38, row_h=42,
         canvas.create_text(x, bottom + 10, text=str(i), font=("Segoe UI", 7), fill="#999")
 
     return step_w, row_h, left_margin
+
+
+def _mult_text(m):
+    if m is None:
+        return "–"
+    for f, s in ((1e9, "G"), (1e6, "M"), (1e3, "k")):
+        if m >= f:
+            return f"×{m / f:g}{s}"
+    return f"×{m:g}"
+
+
+def draw_color_chart(canvas, highlight=None, tempco=True, unit="Ω", w=560, h=300):
+    """Reference chart of the colour code (digit / multiplier / tolerance /
+    temp.co). `highlight` maps column key -> list of colour names in use so
+    the bands of the current part light up."""
+    highlight = highlight or {}
+    cols = [("color", t("cc.col.color"), 1.5), ("digit", t("cc.col.digit"), 1.0),
+            ("multiplier", t("cc.col.mult"), 1.2), ("tolerance", t("cc.col.tol"), 1.1)]
+    if tempco:
+        cols.append(("tempco", t("cc.col.tempco"), 1.2))
+    names = [c for c in COLOR_CODE if c != "None"]
+    tot = sum(c[2] for c in cols)
+    x0, y0 = 6, 6
+    cw = (w - 12) / tot
+    rh = (h - 12) / (len(names) + 1)
+    xs = [x0]
+    for c in cols:
+        xs.append(xs[-1] + c[2] * cw)
+    for j, (key, title, _) in enumerate(cols):
+        canvas.create_rectangle(xs[j], y0, xs[j + 1], y0 + rh, fill="#e9edf4", outline="#d4d9e2")
+        canvas.create_text((xs[j] + xs[j + 1]) / 2, y0 + rh / 2, text=title,
+                           font=("Segoe UI", 8, "bold"), fill="#1f2a44")
+    for i, name in enumerate(names):
+        v = COLOR_CODE[name]
+        yy = y0 + (i + 1) * rh
+        for j, (key, _, _) in enumerate(cols):
+            used = name in highlight.get(key, ())
+            fill = "#ffffff" if i % 2 == 0 else "#f7f8fb"
+            if used:
+                fill = "#fff3c4"
+            canvas.create_rectangle(xs[j], yy, xs[j + 1], yy + rh, fill=fill, outline="#e3e6ec")
+            cx = (xs[j] + xs[j + 1]) / 2
+            if key == "color":
+                sw = min(18, rh - 6)
+                canvas.create_rectangle(xs[j] + 6, yy + (rh - sw) / 2, xs[j] + 6 + sw * 1.6, yy + (rh + sw) / 2,
+                                        fill=v["hex"], outline="#555")
+                canvas.create_text(xs[j] + 12 + sw * 1.6, yy + rh / 2, text=t("color." + name.lower()),
+                                   anchor="w", font=("Segoe UI", 8), fill="#1f2a44")
+                continue
+            val = v.get(key)
+            if key == "digit":
+                txt = "–" if val is None else str(val)
+            elif key == "multiplier":
+                txt = _mult_text(val)
+            elif key == "tolerance":
+                txt = "–" if val is None else f"±{val:g}%"
+            else:
+                txt = "–" if val is None else f"{val} ppm/K"
+            canvas.create_text(cx, yy + rh / 2, text=txt, font=("Consolas", 9, "bold" if used else "normal"),
+                               fill="#b45309" if used else "#1f2a44")

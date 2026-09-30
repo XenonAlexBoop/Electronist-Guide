@@ -93,7 +93,10 @@ class KirchhoffTab(ttk.Frame):
         self.kvl_eq_var = tk.StringVar()
         ttk.Label(parent, textvariable=self.kvl_eq_var, font=FONT_MONO, foreground=ACCENT_C,
                   style="CardFormula.TLabel", wraplength=420, justify="left")\
-            .grid(row=11, column=0, sticky="w", padx=16, pady=(2, 16))
+            .grid(row=11, column=0, sticky="w", padx=16, pady=(2, 8))
+        from uikit import FitCanvas
+        self.kvl_cv = FitCanvas(parent, 460, 300, kmax=1.4, height=320)
+        self.kvl_cv.grid(row=12, column=0, sticky="nsew", padx=16, pady=(0, 16))
 
         self._kvl_solve()
 
@@ -148,6 +151,45 @@ class KirchhoffTab(ttk.Frame):
         drop_terms = " - ".join(f"{d:.3g}V" for d in drops)
         residual = v - sum(drops)
         self.kvl_eq_var.set(f"{v:g}V - ({drop_terms}) = {residual:.2g}V ≈ 0  ✓")
+        if hasattr(self, "kvl_cv"):
+            self.kvl_cv.show(lambda: self._paint_kvl(v, rs, drops, i))
+
+    def _paint_kvl(self, v, rs, drops, i):
+        import symbols as sym
+        c = self.kvl_cv
+        n = len(rs)
+        x0, x1, y0, y1 = 70, 420, 60, 250
+        sym.wire(c, x0, y1, x0, (y0 + y1) / 2 + 18)
+        sym.wire(c, x0, (y0 + y1) / 2 - 18, x0, y0)
+        sym.dc_source(c, x0, (y0 + y1) / 2)
+        c.create_text(x0 - 24, (y0 + y1) / 2, text=f"{v:g} V", anchor="e", font=("Segoe UI", 10, "bold"),
+                      fill="#2e7d32")
+        # resistors along the top and down the right side
+        span = (x1 - x0 - 30) / n
+        x = x0
+        sym.wire(c, x0, y0, x0 + 15, y0)
+        x = x0 + 15
+        cols = ["#c62828", "#ef6c00", "#8e24aa", "#1565c0", "#00838f"]
+        for k, (r, d) in enumerate(zip(rs, drops)):
+            sym.resistor(c, x, y0, x + span, y0, label=f"R{k + 1}", value=f"{r:g} Ω", s=min(1.0, span / 90))
+            c.create_text(x + span / 2, y0 + 30, text=f"−{d:.3g} V", font=("Segoe UI", 9, "bold"),
+                          fill=cols[k % len(cols)])
+            x += span
+        sym.wire(c, x, y0, x1, y0, x1, y1, x0, y1)
+        # loop arrow
+        c.create_arc(170, 110, 320, 220, start=100, extent=300, style="arc", outline="#1f6fb2", width=2)
+        c.create_line(173, 150, 170, 162, fill="#1f6fb2", width=2, arrow="last")
+        c.create_text(245, 165, text=f"I = {i:.3g} A", font=("Segoe UI", 10, "bold"), fill="#1f6fb2")
+        # drop bar: how the source voltage is shared
+        bx0, bx1, by = 60, 430, 285
+        tot = sum(drops) or 1
+        xx = bx0
+        for k, d in enumerate(drops):
+            w = (bx1 - bx0) * d / tot
+            c.create_rectangle(xx, by - 9, xx + w, by + 9, fill=cols[k % len(cols)], outline="white")
+            if w > 34:
+                c.create_text(xx + w / 2, by, text=f"R{k + 1}", font=("Segoe UI", 8, "bold"), fill="white")
+            xx += w
 
     # ------------------------------------------------------------------
     # KCL - node with N branches
@@ -197,7 +239,10 @@ class KirchhoffTab(ttk.Frame):
         self.kcl_result_var = tk.StringVar()
         ttk.Label(parent, textvariable=self.kcl_result_var, font=FONT_MONO, foreground=ACCENT_C,
                   style="CardFormula.TLabel", wraplength=420, justify="left")\
-            .grid(row=row0 + 6, column=0, sticky="w", padx=16, pady=(2, 20))
+            .grid(row=row0 + 6, column=0, sticky="w", padx=16, pady=(2, 8))
+        from uikit import FitCanvas
+        self.kcl_cv = FitCanvas(parent, 460, 300, kmax=1.4, height=320)
+        self.kcl_cv.grid(row=row0 + 7, column=0, sticky="nsew", padx=16, pady=(0, 16))
 
         self._kcl_solve()
 
@@ -232,3 +277,33 @@ class KirchhoffTab(ttk.Frame):
         lines = [f"ΣI_in = {total_in:.4g} A     ΣI_out = {total_out:.4g} A"]
         lines.append(t("kirch.balanced"))
         self.kcl_result_var.set("\n".join(lines))
+        vals = [solved if v is None else v for v in values]
+        if hasattr(self, "kcl_cv"):
+            self.kcl_cv.show(lambda: self._paint_kcl(vals, dirs, solve_i))
+
+    def _paint_kcl(self, vals, dirs, solve_i):
+        import math
+        c = self.kcl_cv
+        cx, cy, R = 230, 155, 95
+        n = len(vals)
+        c.create_oval(cx - 9, cy - 9, cx + 9, cy + 9, fill="#1f2a44", outline="")
+        mx = max([abs(v) for v in vals] + [1e-12])
+        for k, (v, d) in enumerate(zip(vals, dirs)):
+            ang = math.pi / 2 + 2 * math.pi * k / n
+            ex, ey = cx + R * math.cos(ang), cy - R * math.sin(ang)
+            w = 2 + 6 * abs(v) / mx
+            col = "#2e7d32" if d else "#c62828"
+            if d:
+                c.create_line(ex, ey, cx + 14 * math.cos(ang), cy - 14 * math.sin(ang), fill=col, width=w,
+                              arrow="last", arrowshape=(12 + w, 14 + w, 5 + w / 2))
+            else:
+                c.create_line(cx + 12 * math.cos(ang), cy - 12 * math.sin(ang), ex, ey, fill=col, width=w,
+                              arrow="last", arrowshape=(12 + w, 14 + w, 5 + w / 2))
+            ca, sa = math.cos(ang), math.sin(ang)
+            anchor = "w" if ca > 0.3 else "e" if ca < -0.3 else ("s" if sa > 0 else "n")
+            lx, ly = cx + (R + 8) * ca, cy - (R + 8) * sa
+            txt = f"I{k + 1} = {v:.3g} A" + ("  (?)" if k == solve_i else "")
+            c.create_text(lx, ly, text=txt, anchor=anchor, font=("Segoe UI", 10, "bold"), fill=col)
+        c.create_text(8, 8, text="ΣI_in = ΣI_out", anchor="nw", font=("Segoe UI", 10, "bold"), fill="#1f2a44")
+        c.create_text(8, 28, text="→ in", anchor="nw", font=("Segoe UI", 9, "bold"), fill="#2e7d32")
+        c.create_text(8, 44, text="← out", anchor="nw", font=("Segoe UI", 9, "bold"), fill="#c62828")

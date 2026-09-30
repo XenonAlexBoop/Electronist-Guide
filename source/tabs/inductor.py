@@ -14,6 +14,16 @@ from i18n import t
 from .smd_panel import SmdCodePanel
 from .learn import learn_page
 from widgets import lazy_tab
+from uikit import FitCanvas, two_columns
+from drawing import draw_resistor, draw_color_chart
+from i18n import register
+register({"inductor.color_how": (
+    "Moulded inductors use the resistor colour code, but the value is in microhenries: "
+    "digit 1, digit 2, then the multiplier (in µH). Gold as a multiplier means ×0.1 µH, "
+    "so gold can also act as a decimal point (e.g. Red-Gold-Red = 2.2 µH on some parts).",
+    "Bobinele turnate folosesc codul culorilor de la rezistoare, dar valoarea este în microhenry: "
+    "cifra 1, cifra 2, apoi multiplicatorul (în µH). Auriu ca multiplicator înseamnă ×0,1 µH, "
+    "deci auriul poate ține loc de virgulă (ex. Roșu-Auriu-Roșu = 2,2 µH la unele piese).")})
 
 ACCENT_C = ACCENT["inductor"]
 
@@ -49,7 +59,7 @@ class InductorTab(ttk.Frame):
             return make
         lazy_tab(nb, t("solver.tab"), lambda p: FormulaSolverPanel(p, inductor_formulas(), ACCENT_C))
         lazy_tab(nb, t("inductor.subtab.coupling"), lambda p: CouplingPanel(p, ACCENT_C))
-        lazy_tab(nb, t("inductor.subtab.transformer"), framed(self._build_transformer))
+        lazy_tab(nb, t("inductor.subtab.transformer"), lambda p: __import__("tabs.transformer_panel", fromlist=["x"]).TransformerPanel(p, ACCENT_C))
         lazy_tab(nb, t("inductor.subtab.combo"), framed(self._build_combo_section))
 
         def make_chart(parent):
@@ -75,42 +85,57 @@ class InductorTab(ttk.Frame):
 
         lazy_tab(nb, t("inductor.subtab.chart"), make_chart)
 
-        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "inductor", "inductor"))
+        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "inductor", "inductor", extra=lambda b: __import__("tabs.learn_extras", fromlist=["x"]).inductor_refs(b, ACCENT_C)))
 
     # ---- color code -----------------------------------------------------
     def _build_color(self, parent):
-        pad = {"padx": 16, "pady": 6}
-        ttk.Label(parent, text=t("inductor.color_intro"),
-                  font=FONT_BODY, wraplength=420, style="CardBody.TLabel")\
-            .grid(row=0, column=0, columnspan=4, sticky="w", **pad)
-
-        self.band_row_frame = ttk.Frame(parent, style="Card.TFrame")
-        self.band_row_frame.grid(row=1, column=0, columnspan=4, sticky="w", padx=16, pady=6)
+        # v6.3: inputs left; big part drawing + colour chart right
+        left, right = two_columns(parent, left_min=480)
+        ttk.Label(left, text=t("inductor.color_intro"),
+                  font=FONT_BODY, wraplength=440, justify="left", style="CardBody.TLabel")\
+            .grid(row=0, column=0, columnspan=4, sticky="w", padx=4, pady=(4, 8))
+        self.band_row_frame = ttk.Frame(left, style="Card.TFrame")
+        self.band_row_frame.grid(row=1, column=0, columnspan=4, sticky="w", pady=6)
         labels = [t("resistor.band.digit1"), t("resistor.band.digit2"),
                   t("resistor.band.multiplier"), t("resistor.band.tolerance")]
-        options = [DIGIT_COLORS, DIGIT_COLORS, list(COLOR_CODE.keys()), TOLERANCE_COLORS]
+        options = [DIGIT_COLORS, DIGIT_COLORS, [c for c in COLOR_CODE if COLOR_CODE[c]["multiplier"]],
+                   TOLERANCE_COLORS]
+        defaults = ["Brown", "Black", "Black", "Silver"]
         self.band_vars = []
         for i, (label, opts) in enumerate(zip(labels, options)):
             colf = ttk.Frame(self.band_row_frame, style="Card.TFrame")
-            colf.grid(row=0, column=i, padx=6)
+            colf.grid(row=0, column=i, padx=(4, 6))
             ttk.Label(colf, text=label, font=("Segoe UI", 8), style="CardBody.TLabel").pack()
-            var = tk.StringVar(value=opts[0])
+            var = tk.StringVar(value=defaults[i] if defaults[i] in opts else opts[0])
             cb = ttk.Combobox(colf, textvariable=var, values=opts, state="readonly", width=8)
             cb.pack()
             cb.bind("<<ComboboxSelected>>", lambda e: self._update_color())
             self.band_vars.append(var)
 
-        self.ind_canvas = tk.Canvas(parent, width=460, height=180, bg="#fdfaf3", highlightthickness=0)
-        self.ind_canvas.grid(row=2, column=0, columnspan=4, padx=16, pady=6)
-
         self.ind_result = tk.StringVar()
-        ttk.Label(parent, textvariable=self.ind_result, font=FONT_MONO, foreground=ACCENT_C,
-                  style="CardFormula.TLabel").grid(row=3, column=0, columnspan=4, sticky="w", padx=16, pady=(0, 12))
+        ttk.Label(left, textvariable=self.ind_result, font=("Consolas", 16, "bold"), foreground=ACCENT_C,
+                  style="CardFormula.TLabel").grid(row=2, column=0, columnspan=4, sticky="w", padx=4, pady=(14, 2))
+        self.ind_range = tk.StringVar()
+        ttk.Label(left, textvariable=self.ind_range, font=FONT_BODY, style="CardBody.TLabel")\
+            .grid(row=3, column=0, columnspan=4, sticky="w", padx=4)
+        ttk.Label(left, text=t("inductor.color_how"), font=("Segoe UI", 9), style="CardBody.TLabel",
+                  foreground="#5b6475", wraplength=440, justify="left")\
+            .grid(row=4, column=0, columnspan=4, sticky="w", padx=4, pady=(16, 0))
+
+        right.columnconfigure(0, weight=1)
+        right.rowconfigure(0, weight=2)
+        right.rowconfigure(1, weight=3)
+        self.ind_canvas = FitCanvas(right, 460, 160, kmax=1.7)
+        self.ind_canvas.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
+        self.ind_chart = FitCanvas(right, 470, 300, kmax=1.5, bg="#ffffff")
+        self.ind_chart.grid(row=1, column=0, sticky="nsew")
         self._update_color()
 
     def _update_color(self):
         colors = [v.get() for v in self.band_vars]
-        draw_inductor(self.ind_canvas, colors)
+        self.ind_canvas.show(lambda: draw_inductor(self.ind_canvas, colors))
+        hl = {"digit": colors[:2], "multiplier": colors[2:3], "tolerance": colors[3:4]}
+        self.ind_chart.show(lambda: draw_color_chart(self.ind_chart, hl, tempco=False))
         try:
             d1, d2, mult_color, tol_color = colors
             base = COLOR_CODE[d1]["digit"] * 10 + COLOR_CODE[d2]["digit"]
@@ -118,7 +143,10 @@ class InductorTab(ttk.Frame):
             uh = base * mult
             tol = COLOR_CODE[tol_color]["tolerance"]
             henries = uh * 1e-6
-            self.ind_result.set(f"{t('inductor.inductance_prefix')} {format_value(henries, 'H')}  ( {uh:g} µH )  ±{tol}%")
+            self.ind_result.set(f"{t('inductor.inductance_prefix')} {format_value(henries, 'H')}  ±{tol}%")
+            self.ind_range.set(("" if format_value(henries, 'H').endswith("µH") else f"= {uh:g} µH    ")
+                               + f"{t('resistor.range_prefix')} "
+                               f"{format_value(henries * (1 - tol / 100), 'H')} – {format_value(henries * (1 + tol / 100), 'H')}")
         except Exception:
             self.ind_result.set(f"{t('inductor.inductance_prefix')} -")
 
@@ -243,7 +271,9 @@ class InductorTab(ttk.Frame):
         mixed_tab = MixedBuilderPanel(inner_nb, kind="inductor", accent=ACCENT_C)
         inner_nb.add(quick_tab, text=t("combos.subtab.quicklist"))
         inner_nb.add(mixed_tab, text=t("combos.subtab.mixed"))
-        self._build_combo(quick_tab)
+        from combos import QuickComboPanel
+        QuickComboPanel(quick_tab, "inductor", ACCENT_C, t("inductor.combo_title"),
+                        t("inductor.combo_instructions"), "10m, 4.7m, 22m").pack(fill="both", expand=True)
 
     def _build_combo(self, parent):
         pad = {"padx": 16, "pady": 6}

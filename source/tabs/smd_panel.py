@@ -18,6 +18,7 @@ from tkinter import ttk
 import smd_codes as sc
 from data import COLOR_CODE, DIGIT_COLORS
 from drawing import draw_resistor
+from uikit import FitCanvas
 from widgets import ScrollableFrame, parse_value, FONT_H2, FONT_BODY, FONT_MONO
 from i18n import t, register, tr
 
@@ -135,12 +136,17 @@ class SmdCodePanel(ttk.Frame):
         sf = ScrollableFrame(self, style="Card.TFrame")
         sf.grid(row=0, column=0, sticky="nsew")
         body = sf.body
-        body.columnconfigure(0, weight=1)
-        self._build_decode(body)
-        self._build_encode(body)
-        if kind == "capacitor":
-            self._build_cap_bands(body)
-        self._build_tables(body)
+        # v6.3: two columns - decode (with a large chip drawing) on the left,
+        # value -> marking and the reference tables on the right
+        body.columnconfigure(0, weight=1, uniform="smd")
+        body.columnconfigure(1, weight=1, uniform="smd")
+        left = ttk.Frame(body, style="Card.TFrame")
+        left.grid(row=0, column=0, sticky="nsew")
+        right = ttk.Frame(body, style="Card.TFrame")
+        right.grid(row=0, column=1, sticky="nsew")
+        self._build_decode(left)
+        self._build_encode(right)
+        self._build_tables(right)
 
     # ------------------------------------------------------------------
     def _h2(self, parent, key):
@@ -176,8 +182,9 @@ class SmdCodePanel(ttk.Frame):
             b.pack(side="left", padx=2)
             b.bind("<Button-1>", lambda _e, c=c: (self.code.set(c), self._decode()))
 
-        self.canvas = tk.Canvas(body, width=460, height=170, bg=CANVAS_BG, highlightthickness=0)
-        self.canvas.pack(padx=16, pady=6, anchor="w")
+        self.canvas = FitCanvas(body, 460, 170, kmax=2.0,
+                                height=230 if self.kind == "capacitor" else 330, bg=CANVAS_BG)
+        self.canvas.pack(padx=16, pady=6, fill="x")
         self.main_result = tk.StringVar()
         ttk.Label(body, textvariable=self.main_result, font=("Consolas", 15, "bold"), foreground=self.accent,
                   style="CardFormula.TLabel").pack(anchor="w", padx=16)
@@ -228,8 +235,10 @@ class SmdCodePanel(ttk.Frame):
         self._draw_chip(interps)
 
     def _draw_chip(self, interps):
+        self.canvas.show(lambda: self._paint_chip(interps))
+
+    def _paint_chip(self, interps):
         c = self.canvas
-        c.delete("all")
         W, H = 460, 170
         code = self.code.get().strip() or "?"
         tant = bool(interps) and interps[0].scheme == "smd.s.tant"
@@ -345,49 +354,6 @@ class SmdCodePanel(ttk.Frame):
             self.nearest.set("")
 
     # ------------------------------------------------------------------
-    def _build_cap_bands(self, body):
-        self._h2(body, "smd.cband_title")
-        row = ttk.Frame(body, style="Card.TFrame")
-        row.pack(fill="x", padx=16, pady=4)
-        labels = [t("resistor.band.digit1"), t("resistor.band.digit2"), t("resistor.band.multiplier"),
-                  t("resistor.band.tolerance"), t("smd.cband.volt")]
-        mults = [c for c in COLOR_CODE if COLOR_CODE[c]["multiplier"] is not None and
-                 COLOR_CODE[c]["multiplier"] <= 1e6]
-        opts = [DIGIT_COLORS, DIGIT_COLORS, mults, list(CAP_BAND_TOL), list(CAP_BAND_VOLT)]
-        defaults = ["Yellow", "Violet", "Yellow", "White", "Red"]
-        self.cb_vars = []
-        for i, (lab, op, d) in enumerate(zip(labels, opts, defaults)):
-            f = ttk.Frame(row, style="Card.TFrame")
-            f.grid(row=0, column=i, padx=3)
-            ttk.Label(f, text=lab, font=("Segoe UI", 8), style="CardBody.TLabel").pack()
-            v = tk.StringVar(value=d)
-            cb = ttk.Combobox(f, textvariable=v, values=op, state="readonly", width=7)
-            cb.pack()
-            cb.bind("<<ComboboxSelected>>", lambda _e: self._cap_bands())
-            self.cb_vars.append(v)
-        self.cb_canvas = tk.Canvas(body, width=460, height=130, bg=CANVAS_BG, highlightthickness=0)
-        self.cb_canvas.pack(padx=16, pady=4, anchor="w")
-        self.cb_result = tk.StringVar()
-        ttk.Label(body, textvariable=self.cb_result, font=FONT_MONO, foreground=self.accent,
-                  style="CardFormula.TLabel").pack(anchor="w", padx=16, pady=(0, 6))
-        ttk.Separator(body).pack(fill="x", padx=16, pady=6)
-        self._cap_bands()
-
-    def _cap_bands(self):
-        cols = [v.get() for v in self.cb_vars]
-        bands = cols[:4] + ([cols[4]] if CAP_BAND_VOLT.get(cols[4]) else [])
-        draw_resistor(self.cb_canvas, bands, h=130, body="#4f7cc4", edge="#2a4c80")
-        try:
-            pf = (COLOR_CODE[cols[0]]["digit"] * 10 + COLOR_CODE[cols[1]]["digit"]) * COLOR_CODE[cols[2]]["multiplier"]
-            tol = CAP_BAND_TOL[cols[3]]
-            volt = CAP_BAND_VOLT.get(cols[4])
-            txt = f"= {pf:g} pF = {sc.fmt(pf * 1e-12, 'F')}  ±{tol}%"
-            if volt:
-                txt += f"  {volt} V"
-            self.cb_result.set(txt)
-        except Exception:
-            self.cb_result.set("-")
-
     # ------------------------------------------------------------------
     def _build_tables(self, body):
         self._h2(body, "smd.tables")
@@ -406,7 +372,7 @@ class SmdCodePanel(ttk.Frame):
         cb.bind("<<ComboboxSelected>>", lambda _e: self._fill_table())
         wrap = ttk.Frame(body, style="Card.TFrame")
         wrap.pack(fill="x", padx=16, pady=(4, 16))
-        self.ref_tree = ttk.Treeview(wrap, show="headings", height=10)
+        self.ref_tree = ttk.Treeview(wrap, show="headings", height=14)
         vsb = ttk.Scrollbar(wrap, orient="vertical", command=self.ref_tree.yview)
         self.ref_tree.configure(yscrollcommand=vsb.set)
         self.ref_tree.pack(side="left", fill="x", expand=True)
@@ -467,3 +433,61 @@ class SmdCodePanel(ttk.Frame):
         for r in rows:
             tree.insert("", "end", values=r)
         tree.configure(height=min(12, len(rows)))
+
+
+class CapBandPanel(ttk.Frame):
+    """Colour-band code of older through-hole film / ceramic capacitors (value in pF).
+    v6.4: lives on the Capacitors > Ceramic / TH codes page (it was on SMD & Codes)."""
+
+    def __init__(self, parent, accent):
+        super().__init__(parent, style="Card.TFrame")
+        self.accent = accent
+        self._build_cap_bands(self)
+
+    def _h2(self, parent, key):
+        ttk.Label(parent, text=t(key), font=FONT_H2, foreground=self.accent,
+                  style="CardSub.TLabel").pack(anchor="w", padx=4, pady=(12, 4))
+
+    def _build_cap_bands(self, body):
+        self._h2(body, "smd.cband_title")
+        row = ttk.Frame(body, style="Card.TFrame")
+        row.pack(fill="x", padx=4, pady=4)
+        labels = [t("resistor.band.digit1"), t("resistor.band.digit2"), t("resistor.band.multiplier"),
+                  t("resistor.band.tolerance"), t("smd.cband.volt")]
+        mults = [c for c in COLOR_CODE if COLOR_CODE[c]["multiplier"] is not None and
+                 COLOR_CODE[c]["multiplier"] <= 1e6]
+        opts = [DIGIT_COLORS, DIGIT_COLORS, mults, list(CAP_BAND_TOL), list(CAP_BAND_VOLT)]
+        defaults = ["Yellow", "Violet", "Yellow", "White", "Red"]
+        self.cb_vars = []
+        for i, (lab, op, d) in enumerate(zip(labels, opts, defaults)):
+            f = ttk.Frame(row, style="Card.TFrame")
+            f.grid(row=0, column=i, padx=3)
+            ttk.Label(f, text=lab, font=("Segoe UI", 8), style="CardBody.TLabel").pack()
+            v = tk.StringVar(value=d)
+            cb = ttk.Combobox(f, textvariable=v, values=op, state="readonly", width=7)
+            cb.pack()
+            cb.bind("<<ComboboxSelected>>", lambda _e: self._cap_bands())
+            self.cb_vars.append(v)
+        self.cb_canvas = FitCanvas(body, 460, 130, kmax=1.4, height=160, bg=CANVAS_BG)
+        self.cb_canvas.pack(padx=4, pady=4, fill="x")
+        self.cb_result = tk.StringVar()
+        ttk.Label(body, textvariable=self.cb_result, font=FONT_MONO, foreground=self.accent,
+                  style="CardFormula.TLabel").pack(anchor="w", padx=4, pady=(0, 6))
+        ttk.Separator(body).pack(fill="x", padx=4, pady=6)
+        self._cap_bands()
+
+    def _cap_bands(self):
+        cols = [v.get() for v in self.cb_vars]
+        bands = cols[:4] + ([cols[4]] if CAP_BAND_VOLT.get(cols[4]) else [])
+        self.cb_canvas.show(lambda: draw_resistor(self.cb_canvas, bands, h=130, body="#4f7cc4", edge="#2a4c80"))
+        try:
+            pf = (COLOR_CODE[cols[0]]["digit"] * 10 + COLOR_CODE[cols[1]]["digit"]) * COLOR_CODE[cols[2]]["multiplier"]
+            tol = CAP_BAND_TOL[cols[3]]
+            volt = CAP_BAND_VOLT.get(cols[4])
+            txt = f"= {pf:g} pF = {sc.fmt(pf * 1e-12, 'F')}  ±{tol}%"
+            if volt:
+                txt += f"  {volt} V"
+            self.cb_result.set(txt)
+        except Exception:
+            self.cb_result.set("-")
+

@@ -465,3 +465,122 @@ def rf_gallery(parent, accent):
     items = [(_two_port, t("lx.rf.2port")), (_reflection, t("lx.rf.refl")), (_standing, t("lx.rf.sw")),
              (_smith, t("lx.rf.smith")), (_qw, t("lx.rf.qw")), (_stub, t("lx.rf.stub"))]
     return CardGallery(parent, t("lx.title.rf"), t("lx.hint.rf"), items, accent, cell_w=250, cell_h=150)
+
+
+# ---------------------------------------------------------------------------
+# v6.3: quick-reference tables under the symbol gallery on component Learn pages
+def ref_table(parent, title, heads, rows, accent, note_text=None):
+    f = tk.Frame(parent, bg="#ffffff")
+    f.pack(fill="x", pady=(10, 0))
+    tk.Frame(f, bg=accent, height=4).pack(fill="x")
+    tk.Label(f, text=title, font=("Segoe UI", 12, "bold"), fg=accent, bg="#ffffff", anchor="w")\
+        .pack(fill="x", padx=16, pady=(8, 4))
+    g = tk.Frame(f, bg="#e3e6ec")
+    g.pack(fill="x", padx=16, pady=(0, 6))
+    for j in range(len(heads)):
+        g.columnconfigure(j, weight=1)
+    for j, h in enumerate(heads):
+        tk.Label(g, text=h, font=("Segoe UI", 9, "bold"), bg="#e9edf4", fg=INK, anchor="w", padx=6, pady=3)\
+            .grid(row=0, column=j, sticky="nsew", padx=(0, 1), pady=(0, 1))
+    for i, r in enumerate(rows, start=1):
+        for j, v in enumerate(r):
+            tk.Label(g, text=v, font=("Segoe UI", 9), bg="#ffffff" if i % 2 else "#f7f8fb", fg=INK, anchor="w",
+                     justify="left", padx=6, pady=2, wraplength=260).grid(row=i, column=j, sticky="nsew",
+                                                                          padx=(0, 1), pady=(0, 1))
+    if note_text:
+        tk.Label(f, text=note_text, font=("Segoe UI", 8), fg=MUTED, bg="#ffffff", anchor="w", justify="left",
+                 wraplength=520).pack(fill="x", padx=16, pady=(0, 10))
+    return f
+
+
+def _tr(en, ro):
+    from i18n import tr
+    return tr(en, ro)
+
+
+def resistor_refs(parent, accent):
+    e12 = "10 12 15 18 22 27 33 39 47 56 68 82"
+    e24 = "10 11 12 13 15 16 18 20 22 24 27 30 33 36 39 43 47 51 56 62 68 75 82 91"
+    ref_table(parent, _tr("Standard values (E-series)", "Valori standard (seriile E)"),
+              [_tr("Series", "Seria"), _tr("Tolerance", "Toleranță"), _tr("Values per decade", "Valori pe decadă")],
+              [("E6", "±20 %", "10 15 22 33 47 68"), ("E12", "±10 %", e12), ("E24", "±5 %", e24),
+               ("E96", "±1 %", _tr("96 values (see SMD & Codes → EIA-96)", "96 valori (vezi SMD și coduri → EIA-96)"))],
+              accent, _tr("Multiply by 1, 10, 100 … — e.g. 47 → 4.7 Ω, 47 Ω, 470 Ω, 4.7 kΩ …",
+                          "Înmulțește cu 1, 10, 100 … — ex. 47 → 4,7 Ω, 47 Ω, 470 Ω, 4,7 kΩ …"))
+    ref_table(parent, _tr("Typical power ratings", "Puteri nominale tipice"),
+              [_tr("Part", "Piesă"), _tr("Rating", "Putere"), _tr("Use", "Utilizare")],
+              [("0402 / 0603 SMD", "1/16 – 1/10 W", _tr("signal, logic", "semnal, logică")),
+               ("0805 / 1206 SMD", "1/8 – 1/4 W", _tr("general purpose", "uz general")),
+               (_tr("Axial ¼ W", "Axial ¼ W"), "0.25 W", _tr("breadboard, LEDs", "breadboard, LED-uri")),
+               (_tr("Axial 1–2 W", "Axial 1–2 W"), "1 – 2 W", _tr("supplies, snubbers", "surse, snubbere")),
+               (_tr("Wire-wound / Al housing", "Bobinat / carcasă Al"), "5 – 100 W",
+                _tr("loads, braking, shunts", "sarcini, frânare, șunturi"))],
+              accent, _tr("Design rule: keep the dissipated power below half the rating.",
+                          "Regulă: păstrează puterea disipată sub jumătate din valoarea nominală."))
+
+
+def capacitor_refs(parent, accent):
+    ref_table(parent, _tr("Capacitor types", "Tipuri de condensatoare"),
+              [_tr("Type", "Tip"), _tr("Range", "Domeniu"), _tr("Good for", "Potrivit pentru")],
+              [(_tr("Ceramic C0G/NP0", "Ceramic C0G/NP0"), "1 pF – 100 nF",
+                _tr("filters, oscillators (stable)", "filtre, oscilatoare (stabil)")),
+               (_tr("Ceramic X7R/X5R", "Ceramic X7R/X5R"), "100 pF – 100 µF",
+                _tr("decoupling (value drops with DC bias!)", "decuplare (valoarea scade cu tensiunea DC!)")),
+               (_tr("Film (PET/PP)", "Film (PET/PP)"), "1 nF – 10 µF", _tr("audio, snubbers, mains", "audio, snubbere, rețea")),
+               (_tr("Aluminium electrolytic", "Electrolitic aluminiu"), "1 µF – 1 F",
+                _tr("bulk storage, polarised", "stocare, polarizat")),
+               (_tr("Tantalum / polymer", "Tantal / polimer"), "0.1 µF – 1 mF",
+                _tr("compact low-ESR bulk, polarised", "stocare compactă cu ESR mic, polarizat")),
+               (_tr("Supercapacitor", "Supercondensator"), "0.1 – 3000 F", _tr("backup, energy", "backup, energie"))],
+              accent, _tr("Pick a voltage rating ≥ 1.5 × the working voltage (2 × for tantalum).",
+                          "Alege o tensiune nominală ≥ 1,5 × tensiunea de lucru (2 × la tantal)."))
+
+
+def inductor_refs(parent, accent):
+    ref_table(parent, _tr("Core materials", "Materiale de miez"),
+              [_tr("Core", "Miez"), "µr", _tr("Typical use", "Utilizare tipică")],
+              [(_tr("Air", "Aer"), "1", _tr("RF coils, no saturation", "bobine RF, fără saturație")),
+               (_tr("Iron powder", "Pulbere de fier"), "10 – 100", _tr("power chokes, PFC", "șocuri de putere, PFC")),
+               (_tr("Ferrite NiZn", "Ferită NiZn"), "10 – 1500", _tr("RF, EMI beads", "RF, perle EMI")),
+               (_tr("Ferrite MnZn", "Ferită MnZn"), "1000 – 15000", _tr("SMPS transformers", "transformatoare SMPS")),
+               (_tr("Silicon steel", "Oțel electrotehnic"), "~4000", _tr("50/60 Hz transformers", "transformatoare 50/60 Hz"))],
+              accent, _tr("Check the saturation current: above it the inductance collapses.",
+                          "Verifică curentul de saturație: peste el inductanța scade brusc."))
+
+
+def transistor_refs(parent, accent):
+    ref_table(parent, _tr("BJT vs MOSFET vs JFET", "BJT vs MOSFET vs JFET"),
+              [_tr("", ""), "BJT", "MOSFET", "JFET"],
+              [(_tr("Controlled by", "Comandat de"), _tr("base current", "curentul de bază"),
+                _tr("gate voltage", "tensiunea de grilă"), _tr("gate voltage (reverse)", "tensiunea de grilă (inversă)")),
+               (_tr("Input current", "Curent de intrare"), "µA – mA", "≈ 0", "≈ 0 (nA)"),
+               (_tr("On-state", "Starea deschis"), "VCE(sat) ≈ 0.2 V", "RDS(on) mΩ – Ω", _tr("RDS ≈ 100 Ω", "RDS ≈ 100 Ω")),
+               (_tr("Default state", "Starea implicită"), _tr("off", "blocat"), _tr("off (enhancement)", "blocat (îmbogățire)"),
+                _tr("ON", "DESCHIS")),
+               (_tr("Typical use", "Utilizare tipică"), _tr("analog, small switches", "analog, comutatoare mici"),
+                _tr("power switching, logic", "comutare de putere, logică"), _tr("low-noise inputs", "intrări cu zgomot mic"))],
+              accent)
+
+
+def opamp_refs(parent, accent):
+    ref_table(parent, _tr("Common op-amps", "Amplificatoare operaționale uzuale"),
+              [_tr("Part", "Piesă"), "GBW", _tr("Slew", "Viteză"), _tr("Supply", "Alimentare"), _tr("Note", "Notă")],
+              [("LM741", "1 MHz", "0.5 V/µs", "±5…±18 V", _tr("classic, not rail-to-rail", "clasic, nu rail-to-rail")),
+               ("LM358", "1 MHz", "0.3 V/µs", "3…32 V", _tr("single supply, cheap", "alimentare simplă, ieftin")),
+               ("TL081", "3 MHz", "13 V/µs", "±5…±18 V", _tr("JFET input, audio", "intrare JFET, audio")),
+               ("NE5532", "10 MHz", "9 V/µs", "±5…±20 V", _tr("low-noise audio", "audio cu zgomot mic")),
+               ("MCP6002", "1 MHz", "0.6 V/µs", "1.8…6 V", _tr("rail-to-rail I/O", "rail-to-rail I/O"))],
+              accent, _tr("Closed-loop bandwidth ≈ GBW / gain; full-power bandwidth ≈ slew / (2π·Vpeak).",
+                          "Banda în buclă închisă ≈ GBW / câștig; banda la putere maximă ≈ slew / (2π·Vvârf)."))
+
+
+def battery_refs(parent, accent):
+    ref_table(parent, _tr("Cell chemistries", "Chimii de celule"),
+              [_tr("Chemistry", "Chimie"), _tr("Nominal", "Nominal"), _tr("Full → empty", "Plin → gol"),
+               "Wh/kg", _tr("Note", "Notă")],
+              [("Li-ion", "3.6–3.7 V", "4.2 → 3.0 V", "150–260", _tr("needs protection", "necesită protecție")),
+               ("LiFePO4", "3.2 V", "3.6 → 2.5 V", "90–160", _tr("safe, long life", "sigură, durată lungă")),
+               ("NiMH", "1.2 V", "1.45 → 1.0 V", "60–120", _tr("AA/AAA rechargeable", "AA/AAA reîncărcabile")),
+               (_tr("Alkaline", "Alcalină"), "1.5 V", "1.6 → 0.9 V", "~110", _tr("primary (not rechargeable)", "primară (nereîncărcabilă)")),
+               (_tr("Lead-acid", "Plumb-acid"), "2.0 V", "2.13 → 1.75 V", "30–40", _tr("cars, UPS", "auto, UPS"))],
+              accent)

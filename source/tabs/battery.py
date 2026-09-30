@@ -26,10 +26,10 @@ class BatteryTab(ttk.Frame):
 
         nb = ttk.Notebook(self)
         nb.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=20, pady=10)
-        calc = ttk.Frame(nb, style="Card.TFrame")
+        from .battery_panel import BatteryPackPanel
+        calc = BatteryPackPanel(nb, ACCENT_C)
         nb.add(calc, text=t("battery.subtab.calc"))
-        self._build_calculator(calc)
-        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "battery", "battery"))
+        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "battery", "battery", extra=lambda b: __import__("tabs.learn_extras", fromlist=["x"]).battery_refs(b, ACCENT_C)))
 
     def _build_calculator(self, parent):
         pad = {"padx": 16, "pady": 6}

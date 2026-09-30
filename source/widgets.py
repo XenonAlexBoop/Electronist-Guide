@@ -25,8 +25,14 @@ class ScrollableFrame(ttk.Frame):
     is over the content.
     """
 
-    def __init__(self, parent, style="Tab.TFrame", **kw):
+    def __init__(self, parent, style="Tab.TFrame", fill_height=False, **kw):
         super().__init__(parent, style=style, **kw)
+        # fill_height: the body is stretched to the visible height when its
+        # content is shorter (so rows with weight can grow), and scrolls when
+        # the window is too small for it.
+        self._fill_height = fill_height
+        if fill_height:
+            self.after(500, self._poll_fit)
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
@@ -59,6 +65,24 @@ class ScrollableFrame(ttk.Frame):
         self._canvas.configure(scrollregion=self._canvas.bbox("all"))
         self._update_scrollbar_visibility()
 
+    def _poll_fit(self):
+        # content can grow/shrink without a <Configure> on the body (its size is pinned)
+        try:
+            if self.winfo_ismapped():
+                self._fit_height()
+                self._update_scrollbar_visibility()
+            self.after(600, self._poll_fit)
+        except tk.TclError:
+            pass
+
+    def _fit_height(self):
+        if not self._fill_height:
+            return
+        want = max(self._canvas.winfo_height(), self.body.winfo_reqheight())
+        if int(float(self._canvas.itemcget(self._window, "height") or 0)) != want:
+            self._canvas.itemconfigure(self._window, height=want)
+            self._canvas.configure(scrollregion=(0, 0, self._canvas.winfo_width(), want))
+
     def _on_canvas_configure(self, event):
         # The body must never be wider than the visible viewport - if it
         # is, the excess simply sits outside the canvas with no way to
@@ -67,6 +91,7 @@ class ScrollableFrame(ttk.Frame):
         # wrapped labels) will shrink to fit, same as it did before this
         # frame existed.
         self._canvas.itemconfigure(self._window, width=event.width)
+        self._fit_height()
         self._update_scrollbar_visibility()
 
     def _update_scrollbar_visibility(self):
@@ -363,6 +388,16 @@ def lazy_tab(nb, text, factory, **pack_kw):
     if not getattr(nb, "_lazy_bound", False):
         nb.bind("<<NotebookTabChanged>>", lambda e, n=nb: _build_selected(n), add="+")
         nb._lazy_bound = True
+    # v6.4: every "Learn" tab is the first sub-tab and the one shown when a
+    # page is opened for the first time (so the user knows what to expect)
+    try:
+        from i18n import t as _t
+        if text == _t("common.learn"):
+            nb.insert(0, holder)
+            nb.select(holder)
+            nb._learn_first = True
+    except tk.TclError:
+        pass
     return holder
 
 

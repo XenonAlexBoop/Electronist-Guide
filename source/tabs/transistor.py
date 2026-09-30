@@ -130,12 +130,13 @@ class TransistorTab(ttk.Frame):
             self._build_bias_calculator(sf.body, family, polarity)
             return sf
 
+        learn = lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, THEORY_KEY[family], family, extra=lambda b: __import__("tabs.learn_extras", fromlist=["x"]).transistor_refs(b, ACCENT_C)))
         holders = [
+            learn,
             lazy_tab(nb, t("transistor.subtab.visualizer"), vis),
             lazy_tab(nb, t("tc.tab"), lambda p: TransistorCircuitsPanel(p, family, polarity, ACCENT_C)),
             lazy_tab(nb, t("transistor.subtab.bias"), bias),
             lazy_tab(nb, t("transistor.subtab.chart"), lambda p: GraphicalAnalysisPanel(p, family, polarity, ACCENT_C)),
-            lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, THEORY_KEY[family], family)),
         ]
         idx = min(getattr(self, "_sub_index", 0), len(holders) - 1)
         nb.select(idx)

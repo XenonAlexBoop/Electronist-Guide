@@ -62,6 +62,6 @@ if sys.platform == "darwin":
         bundle_identifier='guide.electronist.app',
         info_plist={
             'NSHighResolutionCapable': 'True',
-            'CFBundleShortVersionString': '6.2',
+            'CFBundleShortVersionString': '6.4',
         },
     )

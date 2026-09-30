@@ -8,7 +8,9 @@ from logic.boolexpr import parse, ParseError
 from logic.truthtable import build_truth_table
 from logic.minimize import minimize
 from logic.builder import LogicBuilderView
-from i18n import t
+from i18n import t, register
+
+register({"digital.tt_hint": ("Click a row to set the inputs", "Clic pe un rând pentru a seta intrările")})
 
 ACCENT_C = ACCENT["digital"]
 
@@ -33,6 +35,128 @@ _GATE_EXPR = {
 HIGH_COLOR = "#1f6a5f"
 LOW_COLOR = "#999999"
 TIMING_STEPS = 8
+
+
+register({"digital.iec": ("IEC symbol", "Simbol IEC"),
+          "digital.switch": ("Switch analogy (lamp = Y)", "Analogie cu întrerupătoare (bec = Y)"),
+          "digital.inverted": ("…then inverted", "…apoi negat"),
+          "digital.inverted_state": ("lamp = {l}, then inverted → Y = {y}", "bec = {l}, apoi negat → Y = {y}"),
+          "digital.lamp_state": ("lamp {y} = Y   (click a switch to flip it)",
+                                 "bec {y} = Y   (clic pe un întrerupător pentru a-l comuta)")})
+
+_IEC_TEXT = {"AND": "&", "NAND": "&", "OR": "≥1", "NOR": "≥1", "XOR": "=1", "XNOR": "=1", "NOT": "1"}
+
+
+def _draw_gate_alternatives(c, kind, a=0, b=0, y=0):
+    """IEC rectangular symbol + a switch-and-lamp picture of the gate that
+    follows the current inputs (v6.4: switches open/close, lamp lights)."""
+    ink, muted = "#1f2a44", "#5b6475"
+    on_col, off_col = "#1f6a5f", "#9aa3b2"
+    inv = kind in ("NOT", "NAND", "NOR", "XNOR")
+    two = kind != "NOT"
+    # IEC box
+    c.create_text(60, 10, text=t("digital.iec"), font=("Segoe UI", 8, "bold"), fill=muted)
+    c.create_rectangle(35, 30, 85, 110, outline=ink, width=2, fill="#f5f0e2")
+    c.create_text(60, 45, text=_IEC_TEXT[kind], font=("Segoe UI", 12, "bold"), fill=ink)
+    ys = (55, 90) if two else (70,)
+    for yy, nm, v in zip(ys, "AB", (a, b)):
+        c.create_line(12, yy, 35, yy, fill=on_col if v else off_col, width=3 if v else 2)
+        c.create_text(9, yy, text=f"{nm}={v}", anchor="e", font=("Segoe UI", 8, "bold"), fill=on_col if v else muted)
+    if inv:
+        c.create_polygon(85, 64, 97, 70, 85, 70, fill=ink, outline=ink)   # IEC negation triangle
+    c.create_line(85, 70, 110, 70, fill=on_col if y else off_col, width=3 if y else 2)
+    c.create_text(113, 70, text=f"Y={y}", anchor="w", font=("Segoe UI", 8, "bold"), fill=on_col if y else muted)
+    # switch analogy
+    x0 = 150
+    c.create_text(265, 10, text=t("digital.switch"), font=("Segoe UI", 8, "bold"), fill=muted)
+    base = {"NAND": "AND", "NOR": "OR", "XNOR": "XOR"}.get(kind, kind)
+
+    def switch(x, yy, name, closed, side=False):
+        col = on_col if closed else ink
+        c.create_oval(x - 3, yy - 3, x + 3, yy + 3, fill=ink, outline=ink)
+        c.create_oval(x + 25, yy - 3, x + 31, yy + 3, fill=ink, outline=ink)
+        if closed:
+            c.create_line(x, yy, x + 28, yy, fill=col, width=3)
+        else:
+            c.create_line(x, yy, x + 25, yy - 14, fill=col, width=2)
+        if side:
+            c.create_text(x - 36, yy, text=f"{name}={int(closed)}", anchor="e", font=("Segoe UI", 8, "bold"),
+                          fill="#1f6a5f")
+        else:
+            c.create_text(x + 14, yy - 22, text=f"{name}={int(closed)}", font=("Segoe UI", 8, "bold"),
+                          fill="#1f6a5f")
+
+    top, bot = 55, 120
+    c.create_line(x0, top, x0, 80, fill=ink, width=2)
+    c.create_line(x0 - 10, 80, x0 + 10, 80, fill=ink, width=2)
+    c.create_line(x0 - 5, 86, x0 + 5, 86, fill=ink, width=3)
+    c.create_line(x0, 86, x0, bot, fill=ink, width=2)
+    c.create_line(x0, bot, 360, bot, fill=ink, width=2)
+    if base == "AND":
+        lit = a and b
+        c.create_line(x0, top, 190, top, fill=ink, width=2)
+        switch(190, top, "A", a)
+        c.create_line(220, top, 250, top, fill=ink, width=2)
+        switch(250, top, "B", b)
+        c.create_line(280, top, 340, top, fill=ink, width=2)
+    elif base == "OR":
+        lit = a or b
+        c.create_line(x0, top, 200, top, fill=ink, width=2)
+        c.create_line(200, top - 22, 200, top + 18, fill=ink, width=2)
+        c.create_line(200, top - 22, 230, top - 22, fill=ink, width=2)
+        c.create_line(200, top + 18, 230, top + 18, fill=ink, width=2)
+        switch(230, top - 22, "A", a, side=True)
+        switch(230, top + 18, "B", b, side=True)
+        c.create_line(260, top - 22, 290, top - 22, fill=ink, width=2)
+        c.create_line(260, top + 18, 290, top + 18, fill=ink, width=2)
+        c.create_line(290, top - 22, 290, top + 18, fill=ink, width=2)
+        c.create_line(290, top, 340, top, fill=ink, width=2)
+    elif base == "XOR":
+        # two changeover ("staircase") switches joined by two travelling wires
+        lit = a != b
+        ta, tb = top - 16, top + 16
+        c.create_line(x0, top, 190, top, fill=ink, width=2)
+        for yy in (ta, tb):
+            c.create_oval(213, yy - 3, 219, yy + 3, fill=ink, outline=ink)
+            c.create_oval(267, yy - 3, 273, yy + 3, fill=ink, outline=ink)
+            c.create_line(216, yy, 270, yy, fill=ink, width=2)
+        c.create_oval(187, top - 3, 193, top + 3, fill=ink, outline=ink)
+        c.create_oval(293, top - 3, 299, top + 3, fill=ink, outline=ink)
+        c.create_line(190, top, 216, ta if a else tb, fill=on_col if lit else ink, width=3)
+        c.create_line(296, top, 270, tb if b else ta, fill=on_col if lit else ink, width=3)
+        c.create_text(196, top + 22, text=f"A={a}", font=("Segoe UI", 8, "bold"), fill="#1f6a5f")
+        c.create_text(290, top + 22, text=f"B={b}", font=("Segoe UI", 8, "bold"), fill="#1f6a5f")
+        c.create_line(296, top, 340, top, fill=ink, width=2)
+    else:  # NOT: a closed switch in parallel with the lamp shorts it out
+        lit = not a
+        c.create_line(x0, top, 340, top, fill=ink, width=2)
+        c.create_rectangle(196, top - 6, 214, top + 6, outline=ink, width=2, fill="#ffffff")
+        c.create_text(205, top - 14, text="R", font=("Segoe UI", 8), fill=muted)
+        c.create_line(300, top, 300, top + 26, fill=ink, width=2)
+        # vertical switch
+        c.create_oval(297, top + 23, 303, top + 29, fill=ink, outline=ink)
+        c.create_oval(297, top + 51, 303, top + 57, fill=ink, outline=ink)
+        if a:
+            c.create_line(300, top + 26, 300, top + 54, fill=on_col, width=3)
+        else:
+            c.create_line(300, top + 26, 314, top + 50, fill=ink, width=2)
+        c.create_text(288, top + 40, text=f"A={a}", anchor="e", font=("Segoe UI", 8, "bold"), fill="#1f6a5f")
+        c.create_line(300, top + 54, 300, bot, fill=ink, width=2)
+    # lamp
+    c.create_line(340, top, 360, top, 360, 78, fill=ink, width=2)
+    if lit:
+        for r, col in ((20, "#fff3b0"), (15, "#ffe066")):
+            c.create_oval(360 - r, 89 - r, 360 + r, 89 + r, fill=col, outline="")
+    c.create_oval(349, 78, 371, 100, outline=ink, width=2, fill="#ffd21f" if lit else "#e9ecef")
+    c.create_line(353, 82, 367, 96, fill=ink)
+    c.create_line(353, 96, 367, 82, fill=ink)
+    c.create_line(360, 100, 360, bot, fill=ink, width=2)
+    if inv and kind != "NOT":
+        c.create_text(265, 140, text=t("digital.inverted_state").format(l=int(bool(lit)), y=y),
+                      font=("Segoe UI", 8, "italic"), fill="#c62828")
+    else:
+        c.create_text(265, 140, text=t("digital.lamp_state").format(y=y), font=("Segoe UI", 8, "italic"),
+                      fill=on_col if y else muted)
 
 
 class DigitalLogicTab(ttk.Frame):
@@ -85,74 +209,83 @@ class DigitalLogicTab(ttk.Frame):
     # Logic Gates explorer
     # ------------------------------------------------------------------
     def _build_gates_tab(self, parent):
-        parent.columnconfigure(0, weight=0)
-        parent.columnconfigure(1, weight=0)
-
+        # v6.3: gate picker as buttons; symbol | truth table | explanation side by side,
+        # full-width timing diagram underneath - everything scaled to the page
+        from uikit import FitCanvas, Segmented
+        for c, w in ((0, 4), (1, 3), (2, 4)):
+            parent.columnconfigure(c, weight=w, uniform="gates")
+        self.gate_var = tk.StringVar(value="AND")
         selector = ttk.Frame(parent, style="Card.TFrame")
-        selector.grid(row=0, column=0, columnspan=2, sticky="w", padx=16, pady=(14, 6))
+        selector.grid(row=0, column=0, columnspan=3, sticky="w", padx=16, pady=(14, 8))
         ttk.Label(selector, text=t("digital.gate_select"), font=FONT_BODY, style="CardBody.TLabel")\
             .pack(side="left", padx=(0, 8))
-        self.gate_var = tk.StringVar(value="AND")
-        gate_cb = ttk.Combobox(selector, textvariable=self.gate_var, values=GATES,
-                                state="readonly", width=10, font=FONT_BODY)
-        gate_cb.pack(side="left")
-        gate_cb.bind("<<ComboboxSelected>>", lambda e: self._on_gate_change())
+        Segmented(selector, [(g, g) for g in GATES], self.gate_var, command=lambda _k: self._on_gate_change(),
+                  accent=ACCENT_C, font_size=10).pack(side="left")
 
-        # left column: symbol + I/O toggles + expression + explanation
-        left_col = ttk.Frame(parent, style="Card.TFrame")
-        left_col.grid(row=1, column=0, sticky="nw", padx=16, pady=6)
-
-        self.gate_canvas = tk.Canvas(left_col, width=220, height=130, bg="white",
-                                      highlightthickness=1, highlightbackground="#ddd")
-        self.gate_canvas.pack(anchor="w")
-
-        io_frame = ttk.Frame(left_col, style="Card.TFrame")
-        io_frame.pack(anchor="w", pady=6)
+        # ---- symbol + inputs
+        left_col = tk.Frame(parent, bg="#ffffff", highlightthickness=1, highlightbackground="#e3e6ec")
+        left_col.grid(row=1, column=0, sticky="nsew", padx=(16, 6), pady=6)
+        self.gate_canvas = FitCanvas(left_col, 220, 130, kmax=2.2, height=250, bg="#ffffff")
+        self.gate_canvas.pack(fill="both", expand=True, padx=8, pady=(8, 0))
+        self.gate_canvas.bind("<Button-1>", self._on_gate_click)
+        io_frame = tk.Frame(left_col, bg="#ffffff")
+        io_frame.pack(pady=(4, 12))
         self.input_a_var = tk.IntVar(value=0)
         self.input_b_var = tk.IntVar(value=1)
-        self.btn_a = ttk.Button(io_frame, text="A = 0", width=6, command=lambda: self._toggle_input("A"))
+        self.btn_a = ttk.Button(io_frame, text="A = 0", width=7, command=lambda: self._toggle_input("A"))
         self.btn_a.pack(side="left", padx=(0, 8))
-        self.btn_b = ttk.Button(io_frame, text="B = 1", width=6, command=lambda: self._toggle_input("B"))
-        self.btn_b.pack(side="left", padx=(0, 12))
+        self.btn_b = ttk.Button(io_frame, text="B = 1", width=7, command=lambda: self._toggle_input("B"))
+        self.btn_b.pack(side="left", padx=(0, 16))
         self.output_var = tk.StringVar(value="Y = 0")
-        self.output_lbl = ttk.Label(io_frame, textvariable=self.output_var, font=(FONT_MONO[0], 14, "bold"),
-                                     style="CardFormula.TLabel")
+        self.output_lbl = tk.Label(io_frame, textvariable=self.output_var, font=(FONT_MONO[0], 18, "bold"),
+                                   bg="#ffffff")
         self.output_lbl.pack(side="left")
 
+        # ---- truth table
+        mid = tk.Frame(parent, bg="#ffffff", highlightthickness=1, highlightbackground="#e3e6ec")
+        mid.grid(row=1, column=1, sticky="nsew", padx=6, pady=6)
+        tk.Label(mid, text=t("digital.truth_table"), font=FONT_H2, bg="#ffffff", fg="#1f2a44")\
+            .pack(anchor="w", padx=14, pady=(10, 6))
+        self.tt_frame = tk.Frame(mid, bg="#ffffff")
+        self.tt_frame.pack(padx=14, pady=4)
         self.expr_var = tk.StringVar()
-        ttk.Label(left_col, textvariable=self.expr_var, font=FONT_MONO, foreground=ACCENT_C,
-                  style="CardFormula.TLabel").pack(anchor="w", pady=(6, 0))
+        tk.Label(mid, textvariable=self.expr_var, font=(FONT_MONO[0], 16, "bold"), fg=ACCENT_C, bg="#ffffff")\
+            .pack(pady=(14, 4))
+        tk.Label(mid, text=t("digital.tt_hint"), font=("Segoe UI", 8), fg="#777", bg="#ffffff")\
+            .pack(pady=(0, 10))
+
+        # ---- explanation
+        right_col = tk.Frame(parent, bg="#ffffff", highlightthickness=1, highlightbackground="#e3e6ec")
+        right_col.grid(row=1, column=2, sticky="nsew", padx=(6, 16), pady=6)
+        self.gate_title = tk.StringVar()
+        tk.Label(right_col, textvariable=self.gate_title, font=FONT_H2, fg=ACCENT_C, bg="#ffffff")\
+            .pack(anchor="w", padx=14, pady=(10, 4))
         self.explain_var = tk.StringVar()
-        ttk.Label(left_col, textvariable=self.explain_var, font=FONT_BODY, style="CardBody.TLabel",
-                  wraplength=220, justify="left").pack(anchor="w", pady=(2, 0))
+        ex = tk.Label(right_col, textvariable=self.explain_var, font=("Segoe UI", 10), bg="#ffffff",
+                      justify="left", anchor="w", wraplength=360)
+        ex.pack(anchor="w", fill="x", padx=14, pady=(2, 8))
         self.use_var = tk.StringVar()
-        ttk.Label(left_col, textvariable=self.use_var, font=FONT_BODY, style="CardBody.TLabel",
-                  wraplength=220, justify="left").pack(anchor="w", pady=(4, 0))
+        us = tk.Label(right_col, textvariable=self.use_var, font=("Segoe UI", 10), bg="#ffffff", fg="#5b6475",
+                      justify="left", anchor="w", wraplength=360)
+        us.pack(anchor="w", fill="x", padx=14, pady=(2, 6))
+        self.alt_canvas = FitCanvas(right_col, 380, 150, kmax=1.4, height=170, bg="#ffffff")
+        self.alt_canvas.pack(fill="both", expand=True, padx=8, pady=(0, 8))
+        self.alt_canvas.bind("<Button-1>", self._on_alt_click)
+        right_col.bind("<Configure>", lambda e: (ex.configure(wraplength=max(200, e.width - 30)),
+                                                 us.configure(wraplength=max(200, e.width - 30))), add="+")
 
-        # right column: truth table (beside the symbol, not stacked below it)
-        right_col = ttk.Frame(parent, style="Card.TFrame")
-        right_col.grid(row=1, column=1, sticky="nw", padx=(8, 16), pady=6)
-
-        ttk.Label(right_col, text=t("digital.truth_table"), font=FONT_H2, style="CardSub.TLabel")\
-            .pack(anchor="w", pady=(0, 2))
-        self.gate_table = ttk.Treeview(right_col, columns=("a", "b", "y"), show="headings", height=4)
-        for c, label in (("a", "A"), ("b", "B"), ("y", "Y")):
-            self.gate_table.heading(c, text=label)
-            self.gate_table.column(c, width=44, anchor="center")
-        self.gate_table.tag_configure("current", background="#dff0ea")
-        self.gate_table.pack(anchor="w")
-
-        # timing diagram spans the full width, below both columns
+        # ---- timing diagram spans the full width
         timing_section = ttk.Frame(parent, style="Card.TFrame")
-        timing_section.grid(row=2, column=0, columnspan=2, sticky="w", padx=16, pady=(10, 16))
+        timing_section.grid(row=2, column=0, columnspan=3, sticky="ew", padx=16, pady=(12, 16))
         ttk.Label(timing_section, text=t("digital.timing_diagram"), font=FONT_H2, style="CardSub.TLabel")\
             .pack(anchor="w", pady=(4, 2))
         ttk.Label(timing_section, text=t("digital.timing_hint"), font=(FONT_BODY[0], 8), foreground="#777",
                   style="CardBody.TLabel").pack(anchor="w")
-        self.timing_canvas = tk.Canvas(timing_section, width=34 + TIMING_STEPS * 38, height=170, bg="white",
-                                        highlightthickness=1, highlightbackground="#ddd")
-        self.timing_canvas.pack(anchor="w", pady=(4, 0))
+        self.timing_canvas = tk.Canvas(timing_section, height=190, bg="white",
+                                       highlightthickness=1, highlightbackground="#ddd")
+        self.timing_canvas.pack(fill="x", pady=(4, 0))
         self.timing_canvas.bind("<Button-1>", self._on_timing_click)
+        self.timing_canvas.bind("<Configure>", lambda e: self._redraw_timing(), add="+")
 
         # Default sequence is deliberately not flat/boring on first view.
         self._timing_a = [0, 0, 1, 1, 0, 1, 1, 0][:TIMING_STEPS]
@@ -162,12 +295,44 @@ class DigitalLogicTab(ttk.Frame):
 
         self._on_gate_change()
 
+    def _on_alt_click(self, e):
+        """Click a switch in the switch analogy to flip that input."""
+        x, y = self.alt_canvas.to_design(e.x, e.y)
+        kind = self.gate_var.get()
+        if kind == "NOT":
+            if 280 <= x <= 330 and 60 <= y <= 120:
+                self._toggle_input("A")
+            return
+        base = {"NAND": "AND", "NOR": "OR", "XNOR": "XOR"}.get(kind, kind)
+        if base == "AND":
+            if 180 <= x < 235 and 25 <= y <= 75:
+                self._toggle_input("A")
+            elif 240 <= x <= 295 and 25 <= y <= 75:
+                self._toggle_input("B")
+        elif base == "OR":
+            if 220 <= x <= 275:
+                self._toggle_input("A" if y < 55 else "B")
+        else:
+            if 180 <= x < 235 and 25 <= y <= 90:
+                self._toggle_input("A")
+            elif 255 <= x <= 310 and 25 <= y <= 90:
+                self._toggle_input("B")
+
+    def _on_gate_click(self, e):
+        x, y = self.gate_canvas.to_design(e.x, e.y)
+        if x > 60:
+            return
+        if self.gate_var.get() == "NOT" or y < 60:
+            self._toggle_input("A")
+        else:
+            self._toggle_input("B")
+
     def _on_gate_change(self):
         kind = self.gate_var.get()
         n_in = 1 if kind == "NOT" else 2
         self.btn_b.pack_forget()
         if n_in == 2:
-            self.btn_b.pack(side="left", padx=(0, 12), after=self.btn_a)
+            self.btn_b.pack(side="left", padx=(0, 16), after=self.btn_a)
         self._redraw_gate()
         self._redraw_table()
         self._redraw_timing()
@@ -197,31 +362,55 @@ class DigitalLogicTab(ttk.Frame):
         self.explain_var.set(t(f"digital.explain.{kind}"))
         self.use_var.set(t(f"digital.use.{kind}"))
 
+        self.gate_title.set(kind)
         canvas = self.gate_canvas
-        canvas.delete("all")
-        pins = draw_gate_symbol(canvas, kind, 20, 25, w=130, h=70,
-                                 in_labels=(["A"] if n_in == 1 else ["A", "B"]))
-        in_vals = [a] if n_in == 1 else [a, b]
-        for (px, py), v in zip(pins["inputs"], in_vals):
-            canvas.create_line(0, py, px, py, fill=HIGH_COLOR if v else LOW_COLOR, width=3)
-        ox, oy = pins["output"]
-        canvas.create_line(ox, oy, 220, oy, fill=HIGH_COLOR if y else LOW_COLOR, width=3)
+
+        def paint():
+            pins = draw_gate_symbol(canvas, kind, 45, 30, w=130, h=70,
+                                    in_labels=(["A"] if n_in == 1 else ["A", "B"]))
+            in_vals = [a] if n_in == 1 else [a, b]
+            for (px, py), v, nm in zip(pins["inputs"], in_vals, ("A", "B")):
+                canvas.create_line(12, py, px, py, fill=HIGH_COLOR if v else LOW_COLOR, width=3)
+                canvas.create_text(8, py, text=str(v), anchor="e", font=("Consolas", 10, "bold"),
+                                   fill=HIGH_COLOR if v else LOW_COLOR)
+            ox, oy = pins["output"]
+            canvas.create_line(ox, oy, 205, oy, fill=HIGH_COLOR if y else LOW_COLOR, width=3)
+            canvas.create_text(210, oy, text=str(y), anchor="w", font=("Consolas", 10, "bold"),
+                               fill=HIGH_COLOR if y else LOW_COLOR)
+        canvas.show(paint)
+        self.alt_canvas.show(lambda: _draw_gate_alternatives(self.alt_canvas, kind, a, b if n_in == 2 else 0, y))
 
     def _redraw_table(self):
         kind = self.gate_var.get()
         n_in = 1 if kind == "NOT" else 2
-        table = self.gate_table
-        table.delete(*table.get_children())
-        table["displaycolumns"] = ("a", "y") if n_in == 1 else ("a", "b", "y")
+        f = self.tt_frame
+        for ch in f.winfo_children():
+            ch.destroy()
+        heads = ["A", "Y"] if n_in == 1 else ["A", "B", "Y"]
+        for j, h in enumerate(heads):
+            tk.Label(f, text=h, font=("Consolas", 14, "bold"), width=4, bg="#e9edf4", fg="#1f2a44",
+                     pady=4).grid(row=0, column=j, padx=1, pady=1)
         a_cur, b_cur = self.input_a_var.get(), self.input_b_var.get()
         combos = [(0,), (1,)] if n_in == 1 else [(0, 0), (0, 1), (1, 0), (1, 1)]
-        for combo in combos:
+        for r, combo in enumerate(combos, start=1):
             av = combo[0]
             bv = combo[1] if n_in == 2 else 0
             y = _GATE_FUNCS[kind](av, bv)
-            is_current = (av == a_cur) and (n_in == 1 or bv == b_cur)
-            values = (av, y) if n_in == 1 else (av, bv, y)
-            table.insert("", "end", values=values, tags=("current",) if is_current else ())
+            cur = (av == a_cur) and (n_in == 1 or bv == b_cur)
+            vals = (av, y) if n_in == 1 else (av, bv, y)
+            for j, v in enumerate(vals):
+                last = j == len(vals) - 1
+                bg = "#dff0ea" if cur else "#ffffff"
+                lab = tk.Label(f, text=str(v), font=("Consolas", 14, "bold" if last else "normal"), width=4,
+                               bg=bg, fg=(HIGH_COLOR if (last and v) else "#1f2a44"), pady=4, cursor="hand2")
+                lab.grid(row=r, column=j, padx=1, pady=1)
+                lab.bind("<Button-1>", lambda _e, a=av, b=bv: self._set_inputs(a, b))
+
+    def _set_inputs(self, a, b):
+        self.input_a_var.set(a)
+        self.input_b_var.set(b)
+        self._redraw_gate()
+        self._redraw_table()
 
     def _redraw_timing(self):
         kind = self.gate_var.get()
@@ -236,9 +425,14 @@ class DigitalLogicTab(ttk.Frame):
         # Resize the canvas to fit however many rows this gate needs (2 for
         # a single-input NOT, 3 for a 2-input gate) plus room for the
         # step-number row underneath, so nothing gets cut off at the bottom.
-        needed_h = 14 + len(rows) * 42 + 26
-        self.timing_canvas.configure(height=needed_h)
-        self._timing_geom = draw_timing_diagram(self.timing_canvas, rows)
+        row_h = 62
+        needed_h = 14 + len(rows) * row_h + 26
+        if int(self.timing_canvas.cget("height")) != needed_h:
+            self.timing_canvas.configure(height=needed_h)
+        width = max(400, self.timing_canvas.winfo_width())
+        step_w = (width - 50 - 16) / TIMING_STEPS
+        self._timing_geom = draw_timing_diagram(self.timing_canvas, rows, left_margin=50, step_w=step_w,
+                                                row_h=row_h)
         self._timing_rows = rows
 
     def _on_timing_click(self, event):

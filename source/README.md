@@ -1,4 +1,4 @@
-# ⚡ The Electronist's Guide (v6.2.1)
+# ⚡ The Electronist's Guide (v6.4)
 
 An interactive, visual desktop app for learning about and calculating values
 for common electronic components — built with Python's `tkinter` for the UI
@@ -93,6 +93,64 @@ inductor — and simulate it in DC or AC:
   standard RC/RL cases, or the steady-state value for other combinations
   (an honest simplification — a full transient for reactive-on-both-sides
   networks would need 2nd-order analysis).
+
+## What's new in v6.4
+
+- **Learn comes first** - on every page the Learn sub-tab is now the first tab and
+  the one you see when you open that page, so you know what the tools that follow
+  are about.
+- **Calculator (solve any)** - the "how it changes" chart has its own full-height
+  column on the right (it was a flat strip under the result).
+- **Series / Parallel** - every part you type is drawn (the parallel diagram grows
+  with the number of parts and scales to fit); the page scrolls instead of
+  squashing on short windows.
+- **Resistor colour code** - with 5 or 6 bands the selectors wrap onto a second
+  row instead of running off the page.
+- **Capacitor colour bands** moved from "SMD & Codes" to the through-hole page,
+  now called "THT codes (ceramic / film)".
+- **Inductor colour code** shows the coil drawing with colour dots again.
+- **Logic gates** - the switch-and-lamp picture follows the inputs: switches
+  open/close, the lamp lights, and you can click a switch to flip that input.
+
+## What's new in v6.3 (better use of the screen)
+
+Every page was reviewed at full-HD and at 1366×768. Instead of padding the
+empty areas, the layouts were rearranged so the controls sit in a compact
+left column and drawings/charts scale into the space on the right (never
+blown up past a sensible size, never shrunk below readable; a scrollbar
+appears on small windows).
+
+- **Resistor / Inductor colour code** - large part drawing + a full colour-code
+  chart that highlights the bands in use.
+- **Ceramic capacitor code** - big part, clickable common codes (100 … 476) and
+  tolerance letters, step-by-step reading and a "how to read it" guide.
+- **SMD & Codes** - decode (large chip drawing) on the left, value → marking and
+  the reference tables on the right.
+- **Calculator (solve any)** - all formulas listed on the left (one click to
+  switch), large equation and result, plus a chart of how the answer changes
+  with any one input (÷10 … ×10 around your value).
+- **Series / Parallel** - series and parallel shown side by side, each with its
+  diagram, total and how the voltage / current / charge is shared.
+- **Transformer** - rebuilt: load, secondary / primary current, power, reflected
+  impedance, a drawing whose coils follow the turns ratio, and waveforms.
+- **LED resistor** - next E12 value up and the real current it gives, power and
+  rating, efficiency, colour presets and a current-vs-resistor chart.
+- **Battery pack** - SxP packs with chemistry presets (Li-ion, LiFePO4, NiMH,
+  alkaline, lead-acid), runtime, C-rate, sag, heat and a discharge curve.
+- **Logic gates** - gate buttons, large symbol (click the inputs), a big
+  clickable truth table, IEC symbol and switch-and-lamp analogy, full-width
+  timing diagram.
+- **Ohm's law** - live circuit + I-V line that follow the sliders, RMS/peak
+  sine drawing. **Kirchhoff** - drawn KVL loop with the drops and a KCL node
+  with arrows sized by current.
+- **Unit converter** - list and table stretch to the page; **dB levels** get a
+  clickable "where is this level" dBm scale; **number systems** get large bits,
+  hex digit per nibble, place-value sum and a hex-digit strip; **ADC/DAC** gets
+  the quantisation staircase and error plot.
+- **LED array** drawing scales with the page.
+- **Learn pages** of components get quick-reference tables under the symbols
+  (E-series and power ratings, capacitor types, core materials, BJT/MOSFET/JFET,
+  common op-amps, battery chemistries).
 
 ## What's new in v6.2.1 (polish)
 

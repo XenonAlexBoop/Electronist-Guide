@@ -2,7 +2,8 @@ import tkinter as tk
 from tkinter import ttk
 from data import (COLOR_CODE, DIGIT_COLORS, MULTIPLIER_COLORS, TOLERANCE_COLORS,
                    TEMPCO_COLORS, get_theory)
-from drawing import draw_resistor, draw_combo_diagram
+from drawing import draw_resistor, draw_combo_diagram, draw_color_chart
+from uikit import FitCanvas, two_columns
 from widgets import (TheoryPanel, ScrollableFrame, format_value, parse_value, parse_value_list,
                       series_sum, parallel_combo, FONT_H1, FONT_H2, FONT_BODY, FONT_MONO, ACCENT)
 from combos import MixedBuilderPanel
@@ -49,49 +50,56 @@ class ResistorTab(ttk.Frame):
         self._build_calculator(color_tab)
         self._build_combo_section(combo_tab)
 
-        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "resistor", "resistor"))
+        lazy_tab(nb, t("common.learn"), lambda p: learn_page(p, ACCENT_C, "resistor", "resistor", extra=lambda b: __import__("tabs.learn_extras", fromlist=["x"]).resistor_refs(b, ACCENT_C)))
 
     # ------------------------------------------------------------------
     def _build_calculator(self, parent):
-        pad = {"padx": 16, "pady": 6}
-        ttk.Label(parent, text=t("resistor.color_to_value"), font=FONT_H2, foreground=ACCENT_C,
+        # v6.3: inputs on the left, a large drawing + the colour-code chart on the right
+        left, right = two_columns(parent, left_min=480)
+        pad = {"padx": 4, "pady": 6}
+        ttk.Label(left, text=t("resistor.color_to_value"), font=FONT_H2, foreground=ACCENT_C,
                   style="CardSub.TLabel").grid(row=0, column=0, columnspan=4, sticky="w", **pad)
 
-        ttk.Label(parent, text=t("resistor.num_bands"), font=FONT_BODY, style="CardBody.TLabel")\
-            .grid(row=1, column=0, sticky="w", padx=16)
+        ttk.Label(left, text=t("resistor.num_bands"), font=FONT_BODY, style="CardBody.TLabel")\
+            .grid(row=1, column=0, sticky="w", padx=4)
         self.band_count = tk.IntVar(value=4)
-        band_selector = ttk.Combobox(parent, textvariable=self.band_count, values=[4, 5, 6],
-                                      state="readonly", width=5)
+        band_selector = ttk.Combobox(left, textvariable=self.band_count, values=[4, 5, 6],
+                                     state="readonly", width=5)
         band_selector.grid(row=1, column=1, sticky="w", pady=6)
         band_selector.bind("<<ComboboxSelected>>", lambda e: self._rebuild_band_selectors())
 
-        self.band_row_frame = ttk.Frame(parent, style="Card.TFrame")
-        self.band_row_frame.grid(row=2, column=0, columnspan=4, sticky="w", padx=16, pady=6)
+        self.band_row_frame = ttk.Frame(left, style="Card.TFrame")
+        self.band_row_frame.grid(row=2, column=0, columnspan=4, sticky="w", padx=0, pady=6)
         self.band_vars = []
-
-        self.canvas = tk.Canvas(parent, width=460, height=160, bg="#fdfaf3", highlightthickness=0)
-        self.canvas.grid(row=3, column=0, columnspan=4, padx=16, pady=10)
 
         self.result_var = tk.StringVar(value=f"{t('resistor.resistance_prefix')} -")
         self.range_var = tk.StringVar(value="")
-        ttk.Label(parent, textvariable=self.result_var, font=FONT_MONO, foreground=ACCENT_C,
-                  style="CardFormula.TLabel").grid(row=4, column=0, columnspan=4, sticky="w", padx=16)
-        ttk.Label(parent, textvariable=self.range_var, font=FONT_BODY, style="CardBody.TLabel")\
-            .grid(row=5, column=0, columnspan=4, sticky="w", padx=16, pady=(0, 10))
+        ttk.Label(left, textvariable=self.result_var, font=("Consolas", 17, "bold"), foreground=ACCENT_C,
+                  style="CardFormula.TLabel").grid(row=3, column=0, columnspan=4, sticky="w", padx=4, pady=(14, 2))
+        ttk.Label(left, textvariable=self.range_var, font=FONT_BODY, style="CardBody.TLabel",
+                  wraplength=420, justify="left").grid(row=4, column=0, columnspan=4, sticky="w", padx=4, pady=(0, 10))
 
-        sep = ttk.Separator(parent, orient="horizontal")
-        sep.grid(row=6, column=0, columnspan=4, sticky="ew", padx=16, pady=10)
+        ttk.Separator(left, orient="horizontal").grid(row=5, column=0, columnspan=4, sticky="ew", padx=4, pady=12)
 
-        ttk.Label(parent, text=t("resistor.value_to_color"), font=FONT_H2, foreground=ACCENT_C,
-                  style="CardSub.TLabel").grid(row=7, column=0, columnspan=4, sticky="w", padx=16)
-        ttk.Label(parent, text=t("resistor.enter_resistance"), font=FONT_BODY,
-                  style="CardBody.TLabel").grid(row=8, column=0, columnspan=2, sticky="w", padx=16, pady=4)
+        ttk.Label(left, text=t("resistor.value_to_color"), font=FONT_H2, foreground=ACCENT_C,
+                  style="CardSub.TLabel").grid(row=6, column=0, columnspan=4, sticky="w", padx=4)
+        ttk.Label(left, text=t("resistor.enter_resistance"), font=FONT_BODY,
+                  style="CardBody.TLabel").grid(row=7, column=0, columnspan=4, sticky="w", padx=4, pady=4)
+        row = ttk.Frame(left, style="Card.TFrame")
+        row.grid(row=8, column=0, columnspan=4, sticky="w", padx=4)
         self.target_value = tk.StringVar()
-        entry = ttk.Entry(parent, textvariable=self.target_value, width=16)
-        entry.grid(row=8, column=2, sticky="w", pady=4)
+        entry = ttk.Entry(row, textvariable=self.target_value, width=16)
+        entry.pack(side="left")
         entry.bind("<Return>", lambda e: self._value_to_color())
-        ttk.Button(parent, text=t("common.convert"), command=self._value_to_color)\
-            .grid(row=8, column=3, sticky="w", padx=(6, 0))
+        ttk.Button(row, text=t("common.convert"), command=self._value_to_color).pack(side="left", padx=(8, 0))
+
+        right.columnconfigure(0, weight=1)
+        right.rowconfigure(0, weight=2)
+        right.rowconfigure(1, weight=3)
+        self.canvas = FitCanvas(right, 460, 160, kmax=1.7)
+        self.canvas.grid(row=0, column=0, sticky="nsew", pady=(0, 10))
+        self.chart = FitCanvas(right, 560, 300, kmax=1.5, bg="#ffffff")
+        self.chart.grid(row=1, column=0, sticky="nsew")
 
         self._rebuild_band_selectors()
 
@@ -107,10 +115,11 @@ class ResistorTab(ttk.Frame):
                     6: ["Yellow", "Violet", "Black", "Brown", "Brown", "Red"]}[n]
         for i, (label, opts) in enumerate(zip(labels, options)):
             col_frame = ttk.Frame(self.band_row_frame, style="Card.TFrame")
-            col_frame.grid(row=0, column=i, padx=6)
-            ttk.Label(col_frame, text=label, font=("Segoe UI", 8), style="CardBody.TLabel").pack()
+            per = 4 if n <= 4 else 3        # v6.4: 5/6 bands wrap to a 2nd row instead of running off
+            col_frame.grid(row=i // per, column=i % per, padx=(0, 10), pady=(0, 6), sticky="w")
+            ttk.Label(col_frame, text=label, font=("Segoe UI", 8), style="CardBody.TLabel").pack(anchor="w")
             var = tk.StringVar(value=defaults[i] if defaults[i] in opts else opts[0])
-            cb = ttk.Combobox(col_frame, textvariable=var, values=opts, state="readonly", width=8)
+            cb = ttk.Combobox(col_frame, textvariable=var, values=opts, state="readonly", width=9)
             cb.pack()
             cb.bind("<<ComboboxSelected>>", lambda e: self._color_to_value())
             self.band_vars.append(var)
@@ -143,7 +152,11 @@ class ResistorTab(ttk.Frame):
     def _color_to_value(self):
         colors = [v.get() for v in self.band_vars]
         n = len(colors)
-        draw_resistor(self.canvas, colors)
+        self.canvas.show(lambda: draw_resistor(self.canvas, colors))
+        nd = 2 if n <= 4 else 3
+        hl = {"digit": colors[:nd], "multiplier": colors[nd:nd + 1], "tolerance": colors[nd + 1:nd + 2],
+              "tempco": colors[nd + 2:nd + 3]}
+        self.chart.show(lambda: draw_color_chart(self.chart, hl, tempco=True))
         try:
             if n <= 4:
                 digits = colors[:2]
@@ -210,7 +223,9 @@ class ResistorTab(ttk.Frame):
         mixed_tab = MixedBuilderPanel(inner_nb, kind="resistor", accent=ACCENT_C)
         inner_nb.add(quick_tab, text=t("combos.subtab.quicklist"))
         inner_nb.add(mixed_tab, text=t("combos.subtab.mixed"))
-        self._build_combo(quick_tab)
+        from combos import QuickComboPanel
+        QuickComboPanel(quick_tab, "resistor", ACCENT_C, t("resistor.combo_title"),
+                        t("resistor.combo_instructions"), "220, 470, 1k").pack(fill="both", expand=True)
 
     def _build_combo(self, parent):
         pad = {"padx": 16, "pady": 6}
